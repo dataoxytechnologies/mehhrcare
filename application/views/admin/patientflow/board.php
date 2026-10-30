@@ -174,6 +174,14 @@ if (!function_exists('pf_ct_age_label')) {
     .pf-token-no { font-weight: 700; font-size: 0.9rem; letter-spacing: .3px; }
     .bg-purple { background-color: #6f42c1 !important; }
 
+    /* Select2 dropdowns inside #pfCaseModal must be allowed to overflow
+       the modal-content (which otherwise has no overflow:visible rule).
+       The .modal element itself has overflow:hidden on .sh-modal-nospace,
+       so we use .modal-content as the dropdownParent — this rule ensures
+       its dropdowns are not clipped. */
+    #pfCaseModal .modal-content { overflow: visible !important; }
+    #pfCaseModal .select2-container--open .select2-dropdown { z-index: 1055; }
+
 </style>
 
 <div class="card">
@@ -597,15 +605,24 @@ if (!function_exists('pf_ct_age_label')) {
                                      </a>
                                      <?php } ?>
                                      <?php if (!empty($v->level_generate_bill) && $pf_owned) { ?>
-                                     <!-- <button type="button" class="btn btn-primary btn-sm generatebill w-100 mb-1"
+                                     <button type="button" class="btn btn-primary btn-sm generatebill w-100 mb-1"
                                              data-visit-id="<?php echo (int) $v->id; ?>"
                                              data-patient-id="<?php echo (int) $v->patient_id; ?>"
                                              data-loading-text="<i class='fa fa-circle-o-notch fa-spin'></i> Please Wait.."
                                              autocomplete="off" data-bs-toggle="tooltip"
                                              title="<?php echo $this->lang->line('generate_bill') ?: 'Generate Bill'; ?>">
                                          <i class="fa fa-plus"></i> &nbsp;<?php echo $this->lang->line('generate_bill') ?: 'Generate Bill'; ?>
-                                     </button> -->
+                                     </button>
                                      <?php } ?>
+                                      <?php if ($pf_can_manage_billing) { ?>
+                                      <a href="<?php echo site_url('admin/patientflow/generate_qr_code/' . $v->id); ?>" target="_blank"
+                                              class="btn btn-sm btn-outline-info w-100 mb-1"
+                                              data-bs-toggle="tooltip"
+                                              title="<?php echo $this->lang->line('generate_qr_code') ?: 'Generate QR Code'; ?>">
+                                          <i class="fa fa-qrcode"></i> &nbsp;<?php echo $this->lang->line('qrcode') ?: 'QR Code'; ?>
+                                      </a>
+                                      <?php } ?>
+
 
                                     <button class="btn btn-sm btn-outline-info w-100" type="button"
                                             data-bs-toggle="collapse" data-bs-target="#pfLogs<?php echo $v->id; ?>"
@@ -1127,17 +1144,54 @@ function pfSetOpdPatient(pid, pname) {
 }
 
 // Initialize the modal's static select2 fields on page load (mirrors search.php).
+// $(function () {
+//     $('#myModal .charge_category, #myModal .charge, #myModal #consultant_doctor, #myModal #act').select2({
+//         dropdownParent: $('#myModal')
+//     });
+//     $('#pf_ct_primary_system').select2({
+//         dropdownParent: $('#pfCaseModal'),
+//         placeholder: 'Select system / area',
+//         allowClear: false
+//     });
+// });
 $(function () {
-    $('#myModal .charge_category, #myModal .charge, #myModal #consultant_doctor').select2({
+    // 1. Initialize #myModal selects
+    $('#myModal .charge_category, #myModal .charge, #myModal #consultant_doctor, #myModal #act').select2({
         dropdownParent: $('#myModal')
     });
-    $('#pf_ct_primary_system').select2({
-        dropdownParent: $('#pfCaseModal'),
-        placeholder: 'Select system / area',
-        allowClear: false
+
+    // 2. Initialize #pfCaseModal selects ONLY when it is fully shown
+    $('#pfCaseModal').on('shown.bs.modal', function () {
+        var $systemSelect = $('#pf_ct_primary_system');
+        var $progSelect = $('#pf_ct_programme_id');
+
+        // Safely destroy if already initialized to prevent duplicates
+        if ($systemSelect.hasClass('select2-hidden-accessible')) {
+            $systemSelect.select2('destroy');
+        }
+        if ($progSelect.hasClass('select2-hidden-accessible')) {
+            $progSelect.select2('destroy');
+        }
+
+        // Re-initialize with dropdownParent bound to .modal-content
+        // (NOT the .modal element itself, which has overflow:hidden on
+        // .sh-modal-nospace that would clip the dropdown).
+        var $dropdownParent = $('#pfCaseModal .modal-content');
+        $systemSelect.select2({
+            dropdownParent: $dropdownParent,
+            placeholder: 'Select system / area',
+            allowClear: false,
+            width: '100%'
+        });
+
+        $progSelect.select2({
+            dropdownParent: $dropdownParent,
+            placeholder: 'Select programme',
+            allowClear: true,
+            width: '100%'
+        });
     });
 });
-
 function holdModal(modalId) {
     (function () {
         var _el = document.getElementById(modalId);
@@ -1578,6 +1632,8 @@ $(document).on('click', '.pf-token-edit', function () {
 $(document).on('click', '#pf_ts_save', function () {
     var visitId = $('#pf_ts_visit_id').val();
     var status  = $('#pf_ts_status').val();
+    console.log(visitId);
+    console.log(status);
     if (!visitId || !status) {
         errorMsg('<?php echo $this->lang->line('select_token_status_first') ?: 'Please select a token status first.'; ?>');
         return;
@@ -1658,6 +1714,8 @@ $(document).on('click', '.pf-programme-edit', function () {
 $(document).on('click', '#pf_pg_save', function () {
     var visitId = $('#pf_pg_visit_id').val();
     var status  = $('#pf_pg_status').val();
+    console.log(visitId);
+    console.log(status);
     if (!visitId || !status) {
         errorMsg('<?php echo $this->lang->line('select_token_status_first') ?: 'Please select a status first.'; ?>');
         return;
@@ -2028,8 +2086,8 @@ foreach ($pf_ct_slots as $pf_key => $pf_slot) {
                                                 <textarea class="form-control" id="pf_ct_additional_note" rows="2"></textarea></div>
                                             <div class="col-md-4"><label class="form-label form-label-sm">Previous treatment</label>
                                                 <input type="text" class="form-control" id="pf_ct_previous_treatment" maxlength="255"></div>
-                                            <div class="col-md-4"><label class="form-label form-label-sm">Programme suggestion</label>
-                                                <input type="text" class="form-control" id="pf_ct_programme_suggestion" maxlength="255"></div>
+                                            <!-- <div class="col-md-4"><label class="form-label form-label-sm">Programme suggestion</label>
+                                                <input type="text" class="form-control" id="pf_ct_programme_suggestion" maxlength="255"></div> -->
                                         </div>
                                     </div>
                                 </div>
@@ -2501,7 +2559,11 @@ function pfCtRenderPatientInfo(visitId) {
 // isEdit = 0 -> initial take, isEdit = 1 -> edit of an existing case taking.
 function pfCtOpenForm(opts) {
     var $modal = $('#pfCaseModal');
-    if ($modal.parent()[0] && $modal.parent()[0] !== document.body) { $modal.appendTo('body'); }
+    // if ($modal.parent()[0] && $modal.parent()[0] !== document.body) { $modal.appendTo('body'); }
+    if ($modal.parent()[0] && $modal.parent()[0] !== document.body) { 
+        $modal.appendTo('body'); 
+    }
+    
     var isEdit = opts.isEdit ? 1 : 0;
     $('#pf_ct_visit_id').val(opts.visit || '');
     $('#pf_ct_is_edit').val(isEdit);
@@ -3100,7 +3162,7 @@ $(document).on('click', '#pf_ms_save', function () {
 });
 </script>
 
-<div class="modal fade" id="pfProgrammeModal" tabindex="-1" aria-labelledby="pfProgrammeModalTitle" aria-hidden="true">
+<!-- <div class="modal fade" id="pfProgrammeModal" tabindex="-1" aria-labelledby="pfProgrammeModalTitle" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
             <div class="modal-header bg-info text-white">
@@ -3138,7 +3200,7 @@ $(document).on('click', '#pf_ms_save', function () {
             </div>
         </div>
     </div>
-</div>
+</div> -->
 <script type="text/javascript">
 $(document).on('click', '.pf-programme-btn', function () {
     var $btn = $(this);
@@ -3150,7 +3212,14 @@ $(document).on('click', '.pf-programme-btn', function () {
     $('#pfProgName').text('—');
     $('#pfProgrammeEmpty').show();
     $('#pfProgContent').hide();
-    bootstrap.Modal.getOrCreateInstance(document.getElementById('pfProgrammeModal')).show();
+    $('#pf_pg_visit_id').val(visitId);
+    
+    // Open the modal first
+    var modalEl = document.getElementById('pfProgrammeModal');
+    var $modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+    $modal.show();
+    
+    // Fetch programme details
     $.post('<?php echo site_url('admin/patientflow/get_programme_details'); ?>', {
         visit_id: visitId
     }, function (response) {
@@ -3159,6 +3228,11 @@ $(document).on('click', '.pf-programme-btn', function () {
             $('#pfProgName').text(response.programme.name);
             $('#pfProgrammeEmpty').hide();
             $('#pfProgContent').show();
+            
+            // Pre-select the status from response if available
+            if (response.current_status) {
+                $('#pf_pg_status').val(response.current_status);
+            }
         } else {
             $('#pfProgCode').text('—');
             $('#pfProgName').text(response.message || 'No programme assigned.');
@@ -3177,14 +3251,13 @@ $(document).on('click', '.pf-programme-btn', function () {
 <div class="modal fade sh-modal sh-modal-nospace" id="billModal" tabindex="-1" aria-labelledby="billModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
-            <form id="bill" accept-charset="utf-8" method="post" onkeydown="return event.key != 'Enter';">
+            <form id="bill" action="<?php echo site_url('admin/pharmacy/addBill'); ?>" accept-charset="utf-8" method="post" onkeydown="return event.key != 'Enter';">
             <div class="modal-header">
                 <h5 class="modal-title" id="billModalLabel"><?php echo $this->lang->line('generate_bill'); ?></h5>
                 <input type="hidden" name="organisation_id" id="organisation_id">
                 <input type="hidden" name="insurance_id" id="insurance_id">
                 <input type="hidden" name="insurance_validity" id="insurance_validity">
-                <!-- <select class="form-control patient_list_ajax sh-bill-patient-pick" id="addpatient_id" name="patient_id" onchange="get_PatientDetails(this.value)"></select> -->
-                 <select class="form-control patient_list_ajax sh-bill-patient-pick" id="bill_addpatient_id" name="patient_id" onchange="get_PatientDetails(this.value)"></select>
+                <select class="form-control patient_list_ajax sh-bill-patient-pick" id="bill_addpatient_id" name="patient_id" onchange="get_PatientDetails(this.value)"></select>
                 <!-- <?php if ($this->rbac->hasPrivilege('patient', 'can_add')) { ?>
                 <a onclick="holdModal('myModalpa')" id="add" class="modalbtnpatient btn btn-light btn-sm text-nowrap"><i class="fa fa-plus"></i> <?php echo $this->lang->line('new_patient'); ?></a>
                 <?php } ?> -->
@@ -3193,6 +3266,19 @@ $(document).on('click', '.pf-programme-btn', function () {
                     <input type="text" class="form-control" id="prescription_no" placeholder="<?php echo $this->lang->line('prescription_no'); ?>" name="prescription_no">
                     <button class="btn btn-secondary" type="button" id="search_prescription"><i class="fa fa-search"></i></button>
                 </div>
+                <!-- <div class="form-group">
+                    <label><?php echo $this->lang->line('programme_name'); ?>:</label>
+                    <input type="text" class="form-control" id="pref_programme_name" name="pref_programme_name" readonly>
+                </div>
+                <div class="form-group">
+                    <label><?php echo $this->lang->line('programme_status'); ?>:</label>
+                    <select class="form-control" id="pref_programme_status" name="pref_programme_status">
+                        <option value="enroll">Enroll</option>
+                        <option value="declined">Declined</option>
+                        <option value="deferred">Deferred</option>
+                        <option value="completed">Completed</option>
+                    </select>
+                </div> -->
                 <div class="d-flex align-items-center gap-2">
                     <input class="form-check-input apply_tpa mt-0" id="is_tpa" name="is_tpa" type="checkbox" value="1" autocomplete="off">
                     <label class="form-check-label text-white mb-0" for="is_tpa"><?php echo $this->lang->line('apply_tpa'); ?></label>
@@ -3222,7 +3308,27 @@ $(document).on('click', '.pf-programme-btn', function () {
                 </div>
                 <div id="pf_bill_modal_body">
                     <!-- Bill form content loaded via AJAX -->
+                    <table class="table table-sm table-striped table-bordered table-hover tblProducts" id="tableID" style="table-layout:fixed;width:100%">
+                        <thead>
+                            <tr class="font13 white-space-nowrap">
+                                <th><?php echo $this->lang->line('medicine_name'); ?><small class="req"> *</small></th>
+                                <th><?php echo $this->lang->line('medicine_category'); ?></th>
+                                <th><?php echo $this->lang->line('batch_no'); ?> <small class="req">*</small></th>
+                                <th><?php echo $this->lang->line('expiry_date'); ?><small class="req"> *</small></th>
+                                <th class="text-end"><?php echo $this->lang->line('quantity'); ?><small class="req"> *</small> <?php echo " | " . $this->lang->line('available_qty'); ?></th>
+                                <th class="text-end"><?php echo $this->lang->line('sale_price') . ' (' . $currency_symbol . ')'; ?><small class="req"> *</small></th>
+                                <th><?php echo $this->lang->line('tax'); ?></th>
+                                <th><?php echo $this->lang->line('discount') ?> (%)</th>
+                                <th class="text-end"><?php echo $this->lang->line('amount') . " (" . $currency_symbol . ")"; ?><small class="req"> *</small></th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Medicine rows will be dynamically populated via JavaScript -->
+                        </tbody>
+                    </table>
                 </div>
+            </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal"><?php echo $this->lang->line('cancel'); ?></button>
@@ -3249,8 +3355,7 @@ $(document).on('click', '.generatebill', function() {
         success: function(res) {
             if (res.status) {
                 // Prefill patient name
-                // $('#addpatient_id').val(res.patient_id).trigger('change');
-                $('#billModal #bill_addpatient_id').val(res.patient_id).trigger('change');
+                $('#billModal #addpatient_id').val(res.patient_id).trigger('change');
                 var patientNameInput = $('#pref_patient_name, #patient_name');
                 if (patientNameInput.length) {
                     patientNameInput.val(res.patient_name);
@@ -3269,18 +3374,85 @@ $(document).on('click', '.generatebill', function() {
                 var total_amount = res.total_amount || '0.00';
                 $('#pref_amount').val(total_amount);
                 $('#pref_amount_display').text(total_amount);
+                // Prefill programme name and status
+                if (res.programme_name) {
+                    $('#pref_programme_name').val(res.programme_name);
+                }
+                if (res.programme_status) {
+                    $('#pref_programme_status').val(res.programme_status);
+                }
                 // Prefill medicines into modal table
                 var medicineRows = '';
                 if (res.medicines && res.medicines.length > 0) {
+                    var rowCounter = 1;
                     $.each(res.medicines, function(idx, rx) {
-                        medicineRows += '<tr>' +
-                            '<td>' + (idx + 1) + '</td>' +
-                            '<td>' + (rx.medicine_name || rx.medicine_code || '') + '</td>' +
-                            '<td>' + rx.series + '</td>' +
-                            '<td>' + rx.variant + '</td>' +
-                            '<td>' + rx.price + '</td>' +
-                            '<td><input type="number" class="form-control quantity" value="' + rx.amount + '" min="0"></td>' +
+                        var qty = (rx.amount || 1);
+                        var price = (rx.price || 0);
+                        var rowTotal = qty * price;
+                        medicineRows += '<input type="hidden" name="previous_ids[]" value="0">' +
+                            '<tr id="row' + rowCounter + '">' +
+                            '<td width="12%">' +
+                            '<input type="hidden" name="insert_id_' + rowCounter + '" value="0">' +
+                            '<input type="hidden" name="total_rows[]" value="' + rowCounter + '">' +
+                            '<input type="hidden" class="post_medicine_id" value="' + (rx.medicine_id || 0) + '">' +
+                            '<input type="hidden" class="medicine_batch_detail_id" value="0">' +
+                            '<input type="hidden" class="sale_price" value="' + price + '">' +
+                            '<input type="hidden" class="quantity" value="' + qty + '">' +
+                            '<input type="hidden" class="mdiscount" value="0">' +
+                            '<select class="form-control select3 medicine_name w-100" id="medicine_name' + rowCounter + '" name="medicine_name_id_' + rowCounter + '">' +
+                            '<option value="">Select</option>' +
+                            '<option value="' + rx.medicine_id + '" selected>' + (rx.medicine_name || rx.medicine_code || '') + '</option>' +
+                            '</select>' +
+                            '<span class="text-danger"></span>' +
+                            '</td>' +
+                            '<td>' +
+                            '<input type="text" class="form-control medicine_category_display" readonly placeholder="-">' +
+                            '</td>' +
+                            '<td width="12%">' +
+                            '<select class="form-control batch_no select3" id="batch_no' + rowCounter + '" name="batch_no_id_' + rowCounter + '">' +
+                            '<option value="">Select</option>' +
+                            '</select>' +
+                            '<span class="text-danger"></span>' +
+                            '</td>' +
+                            '<td width="12%">' +
+                            '<input type="text" readonly name="expire_date_' + rowCounter + '" id="expire_date' + rowCounter + '" class="form-control exp_date"/>' +
+                            '<input type="hidden" readonly name="expiry_' + rowCounter + '" id="expiry_' + rowCounter + '" class="form-control expiry"/>' +
+                            '</td>' +
+                            '<td>' +
+                            '<div class="input-group">' +
+                            '<input type="text" name="quantity_' + rowCounter + '" id="quantity' + rowCounter + '" data-rowid="' + rowCounter + '" class="form-control text-end edit_refund_qty qty" value="' + qty + '">' +
+                            '<input type="hidden" id="valid_reund_quantity' + rowCounter + '" class="form-control text-end qty">' +
+                            '<span class="input-group-text text-danger available_qty sh-fs-10pt" id="totalqty0">&nbsp;&nbsp;</span>' +
+                            '</div>' +
+                            '<input type="hidden" class="available_quantity" name="available_quantity_' + rowCounter + '" id="available_quantity0">' +
+                            '</td>' +
+                            '<td class="text-end">' +
+                            '<input type="hidden" name="sale_rate_price_' + rowCounter + '" id="sale_rate_price' + rowCounter + '" class="form-control text-end sale_rate" readonly>' +
+                            '<input type="hidden" name="tpa_rate_' + rowCounter + '" id="tpa_rate' + rowCounter + '" class="form-control text-end tpa_rate" readonly>' +
+                            '<input type="text" name="sale_price_' + rowCounter + '" id="sale_price' + rowCounter + '" class="form-control text-end price" readonly value="' + price + '">' +
+                            '<span class="text-danger"></span>' +
+                            '</td>' +
+                            '<td class="text-end">' +
+                            '<div class="input-group">' +
+                            '<input type="text" class="form-control right-border-none medicine_tax" name="tax_' + rowCounter + '" readonly id="tax' + rowCounter + '" autocomplete="off">' +
+                            '<span class="input-group-text"> %</span>' +
+                            '</div>' +
+                            '</td>' +
+                            '<td class="text-end">' +
+                            '<div class="input-group">' +
+                            '<input type="text" class="form-control right-border-none medicine_discount" name="mdiscount_' + rowCounter + '" id="mdiscount' + rowCounter + '" autocomplete="off">' +
+                            '<span class="input-group-text"> %</span>' +
+                            '</div>' +
+                            '</td>' +
+                            '<td class="text-end" width="12%">' +
+                            '<input type="text" name="amount_' + rowCounter + '" id="amount' + rowCounter + '" placeholder="" class="form-control text-end subtot" readonly value="' + rowTotal.toFixed(2) + '">' +
+                            '<span class="text-danger"></span>' +
+                            '</td>' +
+                            '<td>' +
+                            '<button type="button" class="btn btn-sm btn-outline-danger editdelete_row" data-row-id="' + rowCounter + '" autocomplete="off"><i class="fa fa-times"></i></button>' +
+                            '</td>' +
                             '</tr>';
+                        rowCounter++;
                     });
                 }
                 // Set total amount - compute from medicine amounts if available
@@ -3297,9 +3469,9 @@ $(document).on('click', '.generatebill', function() {
                 $('#total').val(final_total);
                 $('#pref_patient_display').text(res.patient_name || '-');
                 $('#pref_presc_display').text(prescription_no || '-');
-                // Load the bill form body - populate medicine table with visit prescriptions
+// Load the bill form body - populate medicine table with visit prescriptions
                 var formBody = $('#billModal .modal-body');
-                formBody.find('#medicines_tbody').html(medicineRows);
+                formBody.find('#tableID').html(medicineRows);
                 formBody.find('#net_amount').val(final_total);
                 formBody.find('#total').val(final_total);
                 // Show the modal
@@ -3391,6 +3563,3 @@ $(document).on('click', '.generatebill', function() {
         </div>
     </div>
 </div>
-
-</body>
-</html>

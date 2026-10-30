@@ -10,22 +10,22 @@
 
         body {
             font-family: Arial, Helvetica, sans-serif;
-            font-size: 10px;
+            font-size: 12px;
             color: #000;
             background: #fff;
             margin: 0;
             padding: 0;
-            line-height: 1.2;
+            line-height: 1.0;
         }
 
         @page {
-            size: 75mm 33mm;
+            size: 73mm 25mm;
             margin: 0mm;
         }
 
         .label {
             width: 73mm;
-            height: 31mm;
+            height: 25mm;
             margin: 0 auto 1mm auto;
             padding: 0;
             page-break-inside: avoid;
@@ -41,21 +41,21 @@
         }
 
         .label-table td {
-            padding: 0.8mm 1mm;
+            padding: 0.8mm 0.8mm;
             vertical-align: middle;
-            font-size: 9px;
+            font-size: 12px;
             border: none;
         }
 
         .label-table .label-key {
             font-weight: bold;
-            font-size: 9px;
+            font-size: 12px;
             white-space: nowrap;
         }
 
         .label-table .label-value {
             font-weight: normal;
-            font-size: 9px;
+            font-size: 12px;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
@@ -177,15 +177,15 @@ if (!empty($medicines)): ?>
         <table class="label-table" cellspacing="0" cellpadding="0">
             <!-- row 1: UID, Stage, Vial -->
             <tr>
-                <td style="width: 40%;">
+                <td style="width: 55%; height:10px;">
                     <span class="label-key">UID:</span>
                     <span class="label-value"><?php echo htmlspecialchars((string) $visit->patient_uuid); ?></span>
                 </td>
-                <td style="width: 35%; text-align: center;">
+                <td style="width: 23%; text-align: center;">
                     <span class="label-key">Stage:</span>
                     <span class="label-value"><?php echo htmlspecialchars((string) $med['series']); ?></span>
                 </td>
-                <td style="width: 25%; text-align: right;">
+                <td style="width: 22%; text-align: right;">
                     <span class="label-key">Vial:</span>
                     <span class="label-value"><?php echo htmlspecialchars($vialNumber); ?></span>
                 </td>
@@ -198,7 +198,7 @@ if (!empty($medicines)): ?>
 
             <!-- row 2: Code, Date -->
             <tr>
-                <td style="width: 50%;">
+                <td style="width: 50%; height:10px;">
                     <span class="label-key">Code:</span>
                     <span class="label-value"><?php echo htmlspecialchars((string) $med['code']); ?></span>
                 </td>

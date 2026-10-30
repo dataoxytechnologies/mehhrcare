@@ -1,17 +1,24 @@
 .DS_Store
+
+# CodeIgniter runtime
 /application/cache/*
 /application/cache/sessions/*
 /application/logs/*
 /application/config/*
 /application/controllers/install/*
+!application/cache/index.html
+!application/logs/index.html
+
+# General
 *.log
 node_modules/
 vendor/
 .env
-!application/cache/index.html
-!application/logs/index.html
+
+# Uploads
 uploads/*
 !uploads/index.html
+
 # Firebase credentials
 /application/third_party/firebase_notification_key.json
 
@@ -20,6 +27,5 @@ uploads/*
 
 # Database backups
 /backup/database_backup/
-/backup/temp_uploaded/application/third_party/firebase_notification_key.json
-application/libraries/Langconvert.php
-backup/
+/backup/temp_uploaded/
+/backup/

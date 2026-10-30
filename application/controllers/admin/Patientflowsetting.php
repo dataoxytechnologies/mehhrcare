@@ -21,6 +21,11 @@ class Patientflowsetting extends Admin_Controller
     private $programme_groups = array(
         'programme_group' => 'Programme Group',
         'programme_master' => 'Programme Master',
+        'fee_master' => 'Fee Master',
+        'discounts' => 'Discounts & Campaigns',
+        'patient_accounts' => 'Patient Fee Accounts',
+        'schedules' => 'Patient Fee Schedules',
+        'consultation_fees' => 'Consultation & Vial Fees',
     );
 
     public function __construct()
@@ -84,12 +89,263 @@ class Patientflowsetting extends Admin_Controller
         } elseif ($group === 'broad_area_rules') {
             $data['broad_rules'] = $this->patientflow_model->get_broad_rules();
             $data['broad_series'] = $this->patientflow_model->get_broad_series();
+        } elseif ($group === 'fee_master') {
+            $data['fee_items'] = $this->patientflow_model->get_fee_items();
+        } elseif ($group === 'discounts') {
+            $data['discounts'] = $this->patientflow_model->get_discount_campaigns();
+            $data['categories'] = $this->patientflow_model->get_assistance_categories();
+        } elseif ($group === 'patient_accounts') {
+            $data['accounts'] = $this->patientflow_model->get_patient_fee_accounts();
+        } elseif ($group === 'schedules') {
+            $data['schedules'] = $this->patientflow_model->get_patient_fee_schedules();
+        } elseif ($group === 'consultation_fees') {
+            $data['fees'] = $this->patientflow_model->get_consultation_fees();
         } elseif ($group === 'programme_group') {
             $data['programme_groups_list'] = $this->patientflow_model->get_programme_groups();
         }
         $this->load->view('layout/header', $data);
         $this->load->view('admin/patientflow/setting/setting', $data);
         $this->load->view('layout/footer', $data);
+    }
+
+    public function save_fee_item()
+    {
+        if (!$this->rbac->hasPrivilege('patient_flow', 'can_add')
+            && !$this->rbac->hasPrivilege('patient_flow', 'can_edit')) {
+            $this->response_json(array('status' => false, 'message' => 'Access denied.'));
+            return;
+        }
+        $id = (int) $this->input->post('id', true);
+        $this->form_validation->set_rules('fee_type', 'Fee Type', 'trim|required|in_list[ITEM,MILESTONE,STAGE]');
+        $this->form_validation->set_rules('code', 'Fee Code', 'trim|required');
+        $this->form_validation->set_rules('name', 'Name', 'trim|required');
+        $this->form_validation->set_rules('amount', 'Amount', 'trim|numeric');
+        if ($this->form_validation->run() === false) {
+            $this->response_json(array('status' => false, 'message' => validation_errors()));
+            return;
+        }
+        $data = array(
+            'fee_type'   => $this->input->post('fee_type', true),
+            'code'       => $this->input->post('code', true),
+            'name'       => $this->input->post('name', true),
+            'group_code' => $this->input->post('group_code', true),
+            'coverage'   => $this->input->post('coverage', true),
+            'amount'     => $this->input->post('amount', true),
+            'gst_type'   => $this->input->post('gst_type', true),
+            'gst_rate'   => $this->input->post('gst_rate', true),
+            'note'       => $this->input->post('note', true),
+            'is_active'  => $this->input->post('is_active', true),
+        );
+        $res = $this->patientflow_model->save_fee_item($data, $id);
+        $this->response_json($res);
+    }
+
+    public function delete_fee_item()
+    {
+        if (!$this->rbac->hasPrivilege('patient_flow', 'can_edit')) {
+            $this->response_json(array('status' => false, 'message' => 'Access denied.'));
+            return;
+        }
+        $id = (int) $this->input->post('id', true);
+        $res = $this->patientflow_model->delete_fee_item($id);
+        $this->response_json($res);
+    }
+
+    public function toggle_fee_item()
+    {
+        if (!$this->rbac->hasPrivilege('patient_flow', 'can_edit')) {
+            $this->response_json(array('status' => false, 'message' => 'Access denied.'));
+            return;
+        }
+        $id = (int) $this->input->post('id', true);
+        $res = $this->patientflow_model->toggle_fee_item($id);
+        $this->response_json($res);
+    }
+
+    public function get_fee_item()
+    {
+        if (!$this->rbac->hasPrivilege('patient_flow', 'can_view')) {
+            $this->response_json(array('status' => false, 'message' => 'Access denied.'));
+            return;
+        }
+        $id = (int) $this->input->post('id', true);
+        $row = $this->patientflow_model->get_fee_item_by_id($id);
+        if (!$row) {
+            $this->response_json(array('status' => false, 'message' => 'Fee item not found.'));
+            return;
+        }
+        $this->response_json(array(
+            'status' => true,
+            'data' => array(
+                'id'         => $row->id,
+                'fee_type'   => $row->fee_type,
+                'code'       => $row->code,
+                'name'       => $row->name,
+                'group_code' => $row->group_code,
+                'coverage'   => $row->coverage,
+                'amount'     => $row->amount,
+                'gst_type'   => $row->gst_type,
+                'gst_rate'   => $row->gst_rate,
+                'note'       => $row->note,
+                'is_active'  => $row->is_active,
+            ),
+        ));
+    }
+
+    public function get_discount_campaign()
+    {
+        if (!$this->rbac->hasPrivilege('patient_flow', 'can_view')) {
+            $this->response_json(array('status' => false, 'message' => 'Access denied.'));
+            return;
+        }
+        $id = (int) $this->input->post('id', true);
+        $row = $this->patientflow_model->get_discount_campaign_by_id($id);
+        if (!$row) {
+            $this->response_json(array('status' => false, 'message' => 'Campaign not found.'));
+            return;
+        }
+        $this->response_json(array(
+            'status' => true,
+            'data' => array(
+                'id'               => $row->id,
+                'campaign_code'    => $row->campaign_code,
+                'reason'           => $row->reason,
+                'discount_percent' => $row->discount_percent,
+                'start_date'       => $row->start_date,
+                'end_date'         => $row->end_date,
+                'benefit_quarters' => $row->benefit_quarters,
+                'allow_stacking'   => $row->allow_stacking,
+                'payment_mode'     => $row->payment_mode,
+                'status'           => $row->status,
+            ),
+        ));
+    }
+
+    public function delete_discount_campaign()
+    {
+        if (!$this->rbac->hasPrivilege('patient_flow', 'can_delete')) {
+            $this->response_json(array('status' => false, 'message' => 'Access denied.'));
+            return;
+        }
+        $id = (int) $this->input->post('id', true);
+        $res = $this->patientflow_model->delete_discount_campaign($id);
+        $this->response_json($res);
+    }
+
+    public function get_assistance_category()
+    {
+        if (!$this->rbac->hasPrivilege('patient_flow', 'can_view')) {
+            $this->response_json(array('status' => false, 'message' => 'Access denied.'));
+            return;
+        }
+        $id = (int) $this->input->post('id', true);
+        $row = $this->patientflow_model->get_assistance_category_by_id($id);
+        if (!$row) {
+            $this->response_json(array('status' => false, 'message' => 'Assistance category not found.'));
+            return;
+        }
+        $this->response_json(array(
+            'status' => true,
+            'data' => array(
+                'id'               => $row->id,
+                'group_id'         => $row->group_id,
+                'category_code'    => $row->category_code,
+                'discount_percent' => $row->discount_percent,
+                'validity_quarters'=> $row->validity_quarters,
+                'payment_mode'     => $row->payment_mode,
+                'is_active'        => $row->is_active,
+            ),
+        ));
+    }
+
+    public function save_assistance_category()
+    {
+        if (!$this->rbac->hasPrivilege('patient_flow', 'can_add')
+            && !$this->rbac->hasPrivilege('patient_flow', 'can_edit')) {
+            $this->response_json(array('status' => false, 'message' => 'Access denied.'));
+            return;
+        }
+        $id = (int) $this->input->post('id', true);
+        $data = array(
+            'group_id'          => $this->input->post('group_id', true),
+            'category_code'     => $this->input->post('category_code', true),
+            'discount_percent'  => $this->input->post('discount_percent', true),
+            'validity_quarters' => $this->input->post('validity_quarters', true),
+            'payment_mode'      => $this->input->post('payment_mode', true),
+            'is_active'         => $this->input->post('is_active', true),
+        );
+        $res = $this->patientflow_model->save_assistance_category($id, $data);
+        $this->response_json($res);
+    }
+
+    public function delete_assistance_category()
+    {
+        if (!$this->rbac->hasPrivilege('patient_flow', 'can_delete')) {
+            $this->response_json(array('status' => false, 'message' => 'Access denied.'));
+            return;
+        }
+        $id = (int) $this->input->post('id', true);
+        $res = $this->patientflow_model->delete_assistance_category($id);
+        $this->response_json($res);
+    }
+
+    public function toggle_assistance_category()
+    {
+        if (!$this->rbac->hasPrivilege('patient_flow', 'can_edit')) {
+            $this->response_json(array('status' => false, 'message' => 'Access denied.'));
+            return;
+        }
+        $id = (int) $this->input->post('id', true);
+        $res = $this->patientflow_model->toggle_assistance_category($id);
+        $this->response_json($res);
+    }
+
+    public function get_patient_fee_schedule()
+    {
+        if (!$this->rbac->hasPrivilege('patient_flow', 'can_view')) {
+            $this->response_json(array('status' => false, 'message' => 'Access denied.'));
+            return;
+        }
+        $id = (int) $this->input->post('id', true);
+        $row = $this->patientflow_model->get_patient_fee_schedule_by_id($id);
+        if (!$row) {
+            $this->response_json(array('status' => false, 'message' => 'Schedule not found.'));
+            return;
+        }
+        $this->response_json(array('status' => true, 'data' => $row));
+    }
+
+    public function save_patient_fee_schedule()
+    {
+        if (!$this->rbac->hasPrivilege('patient_flow', 'can_add') && !$this->rbac->hasPrivilege('patient_flow', 'can_edit')) {
+            $this->response_json(array('status' => false, 'message' => 'Access denied.'));
+            return;
+        }
+        $id = (int) $this->input->post('id', true);
+        $data = array(
+            'account_id'       => $this->input->post('account_id', true),
+            'quarter_no'       => $this->input->post('quarter_no', true),
+            'stage_from'       => $this->input->post('stage_from', true),
+            'stage_to'         => $this->input->post('stage_to', true),
+            'label'            => $this->input->post('label', true),
+            'standard_amount'  => $this->input->post('standard_amount', true),
+            'discount_percent' => $this->input->post('discount_percent', true),
+            'payable_amount'   => $this->input->post('payable_amount', true),
+            'status'           => $this->input->post('status', true),
+        );
+        $res = $this->patientflow_model->save_patient_fee_schedule($id, $data);
+        $this->response_json($res);
+    }
+
+    public function delete_patient_fee_schedule()
+    {
+        if (!$this->rbac->hasPrivilege('patient_flow', 'can_delete')) {
+            $this->response_json(array('status' => false, 'message' => 'Access denied.'));
+            return;
+        }
+        $id = (int) $this->input->post('id', true);
+        $res = $this->patientflow_model->delete_patient_fee_schedule($id);
+        $this->response_json($res);
     }
 
     public function save_constitution()
@@ -946,6 +1202,52 @@ class Patientflowsetting extends Admin_Controller
         $res = $this->patientflow_model->get_pending_payments($limit, $offset);
         $this->response_json(array('status' => true, 'pending_payments' => $res));
     }
+
+    /**
+     * Send a JSON response and terminate the request.
+     *
+     * Usage:
+     *   $this->response_json(array('status' => true, 'pending_payments' => $res));
+     *   $this->response_json(array('status' => false, 'message' => 'Not found'), 404);
+     *
+     * @param  array $data       Payload to encode as JSON.
+     * @param  int   $http_code  HTTP status code (default 200).
+     * @return void
+     */
+    public function response_json($data = array(), $http_code = 200)
+    {
+        // Ensure nothing has already been output (prevents broken JSON).
+        if (ob_get_length()) {
+            ob_clean();
+        }
+
+        // Set headers only if not already sent.
+        if (!headers_sent()) {
+            header('Content-Type: application/json; charset=utf-8');
+            header('X-Content-Type-Options: nosniff');
+            http_response_code((int) $http_code);
+        }
+
+        // Encode safely.
+        $json = json_encode(
+            $data,
+            JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PARTIAL_OUTPUT_ON_ERROR
+        );
+
+        // json_encode can still fail on invalid UTF-8.
+        if ($json === false) {
+            if (!headers_sent()) {
+                http_response_code(500);
+            }
+            $json = json_encode(array(
+                'status'  => false,
+                'message' => 'Response encoding error: ' . json_last_error_msg(),
+            ));
+        }
+
+        echo $json;
+        exit;
+    }
+    
+    
 }
-
-
