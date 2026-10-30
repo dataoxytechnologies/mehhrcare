@@ -2431,6 +2431,8 @@ $lang["previous_obstetric_history"] = "Previous Obstetric History";
 $lang["primary_examine"] = "Primary Examine";
 $lang["processing_transaction_report"] = "Processing Transaction Report";
 $lang["qrcode"] = "QR Code";
+$lang["generate_qr_code"] = "Generate QR Code";
+
 $lang["quantity_must_be_greater_than_zero"] = "Quantity must be greater than 0";
 $lang["rack_number"] = "Rack Number";
 $lang["radiology_bill_no"] = "Radiology Bill No";
@@ -3270,3 +3272,7 @@ $lang['your_booking'] = 'Your booking';
 $lang['your_selection'] = 'Your Selection';
 $lang['zoom_credential'] = 'Zoom Credential';
 $lang["zoom_oauth_setup"] = "Zoom OAuth Setup";
+$lang["abdm"] = "ABDM";
+$lang["abdm_dashboard"] = "ABDM Dashboard";
+$lang["abha_id_management"] = "ABHA ID Management";
+

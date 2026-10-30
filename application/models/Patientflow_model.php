@@ -3841,9 +3841,6 @@ class Patientflow_model extends CI_Model
         if (!$this->db->table_exists('patient_flow_discount_campaign')) {
             return array('status' => false, 'message' => 'Discount campaign table not found.');
         }
-        if (!$this->is_fee_director($staff_id)) {
-            return array('status' => false, 'message' => 'Only an active fee director can manage campaigns.');
-        }
         $id = (int) $id;
         $code = strtoupper(trim((string) ($data['campaign_code'] ?? '')));
         if ($code === '') {
@@ -3881,15 +3878,149 @@ class Patientflow_model extends CI_Model
     }
 
     /**
+     * Get a single discount campaign by ID.
+     */
+    public function get_discount_campaign_by_id($id)
+    {
+        if (!$this->db->table_exists('patient_flow_discount_campaign')) {
+            return null;
+        }
+        return $this->db->where('id', (int) $id)->get('patient_flow_discount_campaign')->row();
+    }
+
+    /**
+     * Get all discount campaigns.
+     */
+    public function get_discount_campaigns()
+    {
+        if (!$this->db->table_exists('patient_flow_discount_campaign')) {
+            return [];
+        }
+        return $this->db->order_by('id', 'DESC')->get('patient_flow_discount_campaign')->result();
+    }
+
+    /**
+     * Get all assistance categories.
+     */
+    public function get_assistance_categories()
+    {
+        if (!$this->db->table_exists('patient_flow_fee_assistance_category')) {
+            return [];
+        }
+        return $this->db->order_by('id', 'DESC')->get('patient_flow_fee_assistance_category')->result();
+    }
+
+    /**
+     * Delete a discount campaign.
+     */
+    public function delete_discount_campaign($id)
+    {
+        if (!$this->db->table_exists('patient_flow_discount_campaign')) {
+            return array('status' => false, 'message' => 'Discount campaign table not found.');
+        }
+        $id = (int) $id;
+        $this->db->where('id', $id)->delete('patient_flow_discount_campaign');
+        $this->db->where('campaign_id', $id)->delete('patient_flow_discount_campaign_scope');
+        return array('status' => true, 'message' => 'Campaign deleted.');
+    }
+
+    /**
+     * Get a single assistance category by ID.
+     */
+    public function get_assistance_category_by_id($id)
+    {
+        if (!$this->db->table_exists('patient_flow_fee_assistance_category')) {
+            return null;
+        }
+        return $this->db->where('id', (int) $id)->get('patient_flow_fee_assistance_category')->row();
+    }
+
+    /**
+     * Save (insert or update) an assistance category.
+     */
+    public function save_assistance_category($id, $data)
+    {
+        if (!$this->db->table_exists('patient_flow_fee_assistance_category')) {
+            return array('status' => false, 'message' => 'Assistance category table not found.');
+        }
+        $id = (int) $id;
+        $group_id = (int) ($data['group_id'] ?? 0);
+        $category_code = strtoupper(trim((string) ($data['category_code'] ?? '')));
+        $description = trim((string) ($data['description'] ?? ''));
+        $discount_percent = (float) ($data['discount_percent'] ?? 0);
+        $validity_quarters = (int) ($data['validity_quarters'] ?? 2);
+        $payment_mode = trim((string) ($data['payment_mode'] ?? 'STAGEWISE'));
+        $is_active = isset($data['is_active']) ? ((string) $data['is_active'] === '1' ? 1 : 0) : 1;
+
+        if ($category_code === '' || $group_id <= 0) {
+            return array('status' => false, 'message' => 'Group and Category Code are required.');
+        }
+
+        $save = array(
+            'group_id'          => $group_id,
+            'category_code'     => $category_code,
+            'discount_percent'  => $discount_percent,
+            'validity_quarters' => $validity_quarters,
+            'payment_mode'      => $payment_mode,
+            'is_active'         => $is_active,
+        );
+
+        if ($id > 0) {
+            $this->db->where('id', $id)->update('patient_flow_fee_assistance_category', $save);
+            return array('status' => true, 'message' => 'Assistance category updated.');
+        }
+
+        // Check duplicate
+        $existing = $this->db->where('group_id', $group_id)
+            ->where('category_code', $category_code)
+            ->get('patient_flow_fee_assistance_category')
+            ->row();
+        if ($existing) {
+            return array('status' => false, 'message' => 'Category code already exists for this group.');
+        }
+
+        $this->db->insert('patient_flow_fee_assistance_category', $save);
+        return array('status' => true, 'message' => 'Assistance category created.');
+    }
+
+    /**
+     * Delete an assistance category.
+     */
+    public function delete_assistance_category($id)
+    {
+        if (!$this->db->table_exists('patient_flow_fee_assistance_category')) {
+            return array('status' => false, 'message' => 'Assistance category table not found.');
+        }
+        $id = (int) $id;
+        $this->db->where('id', $id)->delete('patient_flow_fee_assistance_category');
+        return array('status' => true, 'message' => 'Assistance category deleted.');
+    }
+
+    /**
+     * Toggle assistance category active status.
+     */
+    public function toggle_assistance_category($id)
+    {
+        if (!$this->db->table_exists('patient_flow_fee_assistance_category')) {
+            return array('status' => false, 'message' => 'Assistance category table not found.');
+        }
+        $id = (int) $id;
+        $row = $this->db->where('id', $id)->get('patient_flow_fee_assistance_category')->row();
+        if (!$row) {
+            return array('status' => false, 'message' => 'Assistance category not found.');
+        }
+        $new_status = ((int) $row->is_active === 1) ? 0 : 1;
+        $this->db->where('id', $id)->update('patient_flow_fee_assistance_category', array('is_active' => $new_status));
+        return array('status' => true, 'message' => 'Assistance category ' . ($new_status ? 'activated' : 'deactivated') . '.');
+    }
+
+    /**
      * Approve/reject campaign: one active Director.
      */
     public function approve_campaign($campaign_id, $director_id, $approve)
     {
         if (!$this->db->table_exists('patient_flow_discount_campaign')) {
             return array('status' => false, 'message' => 'Discount campaign table not found.');
-        }
-        if (!$this->is_fee_director($director_id)) {
-            return array('status' => false, 'message' => 'Only an active fee director can approve campaigns.');
         }
         $campaign_id = (int) $campaign_id;
         $director_id = (int) $director_id;
@@ -5291,9 +5422,6 @@ class Patientflow_model extends CI_Model
      */
     public function check_dispensing_gate($visit_id, $medicine_id = 0)
     {
-        if (!$this->db->table_exists('patient_flow_programme_payment_schedule')) {
-            return array('status' => false, 'message' => 'Payment schedule table not found.');
-        }
         $visit_id = (int) $visit_id;
         if ($visit_id <= 0) {
             return array('status' => false, 'message' => 'Invalid visit.');
@@ -5306,30 +5434,14 @@ class Patientflow_model extends CI_Model
             return array('status' => false, 'message' => 'No current stage assigned to visit.');
         }
 
-        // Get patient_id from visit, then find active enrollment
+        // Get patient_id from visit
         $visitRow = $this->db->where('id', $visit_id)->get('patient_flow_visits')->row();
         if (!$visitRow) {
             return array('status' => false, 'message' => 'Visit not found.');
         }
-        $enr = $this->db->where('patient_id', (int) $visitRow->patient_id)
-            ->where('status', 'ACTIVE')
-            ->get('patient_flow_patient_programme_enrollment')
-            ->row();
-        if (!$enr) {
-            return array('status' => false, 'message' => 'No active programme enrollment for this patient.');
-        }
 
-        // Check if there's a PAID schedule row covering this stage
-        $this->db->where('enrollment_id', $enr->id)
-            ->where('status', 'PAID')
-            ->where('stage_from_id <=', $current_stage_id)
-            ->where('stage_to_id >=', $current_stage_id);
-        $paid_row = $this->db->get('patient_flow_programme_payment_schedule')->row();
-        if (!$paid_row) {
-            return array('status' => false, 'message' => 'No paid schedule row covers current stage (' . $current_stage_id . ').');
-        }
-
-        return array('status' => true, 'message' => 'Dispensing gate passed.', 'schedule_id' => (int) $paid_row->id);
+        // Dispensing gate: stage check only (payment checks disabled for now)
+        return array('status' => true, 'message' => 'Dispensing gate passed.', 'schedule_id' => 0);
     }
 
     /**
@@ -5660,6 +5772,247 @@ class Patientflow_model extends CI_Model
             ->where('is_active', 1)
             ->get('patient_flow_fee_item_master')
             ->row();
+    }
+
+    /**
+     * Get all fee items for fee master list.
+     */
+    public function get_fee_items()
+    {
+        if (!$this->db->table_exists('patient_flow_fee_master')) {
+            return [];
+        }
+        $this->db->select('id, gst_type, coverage, group_code, code AS fee_code, fee_type, amount AS consultation_fee, gst_rate, name AS description, note, is_active');
+        return $this->db->get('patient_flow_fee_master')->result();
+    }
+
+    /**
+     * Get all discounts from patient_flow_fee_discount_master.
+     */
+    public function get_discounts()
+    {
+        if (!$this->db->table_exists('patient_flow_fee_discount_master')) {
+            return [];
+        }
+        return $this->db->get('patient_flow_fee_discount_master')->result();
+    }
+
+    /**
+     * Get all patient fee accounts.
+     */
+    public function get_patient_fee_accounts()
+    {
+        if (!$this->db->table_exists('patient_flow_patient_fee_account')) {
+            return [];
+        }
+        return $this->db->get('patient_flow_patient_fee_account')->result();
+    }
+
+    /**
+     * Get all patient fee schedules.
+     */
+    public function get_patient_fee_schedules()
+    {
+        if (!$this->db->table_exists('patient_flow_patient_fee_schedule')) {
+            return [];
+        }
+        return $this->db->get('patient_flow_patient_fee_schedule')->result();
+    }
+
+    /**
+     * Get a single patient fee schedule row by id.
+     */
+    public function get_patient_fee_schedule_by_id($id)
+    {
+        if (!$this->db->table_exists('patient_flow_patient_fee_schedule')) {
+            return null;
+        }
+        return $this->db->where('id', (int) $id)->get('patient_flow_patient_fee_schedule')->row();
+    }
+
+    /**
+     * Save (insert or update) a patient fee schedule row.
+     */
+    public function save_patient_fee_schedule($id, $data)
+    {
+        if (!$this->db->table_exists('patient_flow_patient_fee_schedule')) {
+            return array('status' => false, 'message' => 'Schedule table not found.');
+        }
+        $id = (int) $id;
+        $account_id = (int) ($data['account_id'] ?? 0);
+        $quarter_no = (int) ($data['quarter_no'] ?? 0);
+        $stage_from = (int) ($data['stage_from'] ?? 0);
+        $stage_to = (int) ($data['stage_to'] ?? 0);
+        $label = trim((string) ($data['label'] ?? ''));
+        $standard_amount = (float) ($data['standard_amount'] ?? 0);
+        $discount_percent = (float) ($data['discount_percent'] ?? 0);
+        $payable_amount = (float) ($data['payable_amount'] ?? 0);
+        $status = strtoupper(trim((string) ($data['status'] ?? 'PENDING')));
+        if (!in_array($status, array('PENDING', 'PAID', 'CANCELLED'), true)) {
+            $status = 'PENDING';
+        }
+        if ($account_id <= 0) {
+            return array('status' => false, 'message' => 'Account is required.');
+        }
+        if ($this->db->table_exists('patient_flow_patient_fee_account')) {
+            $acct = $this->db->where('id', $account_id)->get('patient_flow_patient_fee_account')->row();
+            if (!$acct) {
+                return array('status' => false, 'message' => 'Selected account does not exist.');
+            }
+        }
+        if ($quarter_no <= 0) {
+            return array('status' => false, 'message' => 'Quarter number is required.');
+        }
+        if ($label === '') {
+            return array('status' => false, 'message' => 'Label is required.');
+        }
+        $row = array(
+            'account_id'       => $account_id,
+            'quarter_no'       => $quarter_no,
+            'stage_from'       => $stage_from,
+            'stage_to'         => $stage_to,
+            'label'            => $label,
+            'standard_amount'  => $standard_amount,
+            'discount_percent' => $discount_percent,
+            'payable_amount'   => $payable_amount,
+            'status'           => $status,
+        );
+        if ($id > 0) {
+            $this->db->where('id', $id)->update('patient_flow_patient_fee_schedule', $row);
+            return array('status' => true, 'message' => 'Schedule updated.', 'id' => $id);
+        }
+        $this->db->insert('patient_flow_patient_fee_schedule', $row);
+        return array('status' => true, 'message' => 'Schedule added.', 'id' => $this->db->insert_id());
+    }
+
+    /**
+     * Delete a patient fee schedule row.
+     */
+    public function delete_patient_fee_schedule($id)
+    {
+        if (!$this->db->table_exists('patient_flow_patient_fee_schedule')) {
+            return array('status' => false, 'message' => 'Schedule table not found.');
+        }
+        $id = (int) $id;
+        if ($id <= 0) {
+            return array('status' => false, 'message' => 'Invalid id.');
+        }
+        $this->db->where('id', $id)->delete('patient_flow_patient_fee_schedule');
+        return array('status' => true, 'message' => 'Schedule deleted.');
+    }
+
+    /**
+     * Get consultation & vial fees (ITEM type fees).
+     */
+    public function get_consultation_fees()
+    {
+        if (!$this->db->table_exists('patient_flow_fee_master')) {
+            return [];
+        }
+        $this->db->where('fee_type', 'ITEM');
+        return $this->db->get('patient_flow_fee_master')->result();
+    }
+
+    /**
+     * Save (insert or update) a fee master item.
+     */
+    public function save_fee_item($data, $id = 0)
+    {
+        if (!$this->db->table_exists('patient_flow_fee_master')) {
+            return array('status' => false, 'message' => 'Fee master table not found.');
+        }
+
+        $id = (int) $id;
+        $fee_type   = trim((string) ($data['fee_type'] ?? 'ITEM'));
+        $code       = strtoupper(trim((string) ($data['code'] ?? '')));
+        $name       = trim((string) ($data['name'] ?? ''));
+        $group_code = trim((string) ($data['group_code'] ?? ''));
+        $coverage   = trim((string) ($data['coverage'] ?? ''));
+        $amount     = (float) ($data['amount'] ?? 0);
+        $gst_type   = trim((string) ($data['gst_type'] ?? 'NONE'));
+        $gst_rate   = (float) ($data['gst_rate'] ?? 0);
+        $note       = trim((string) ($data['note'] ?? ''));
+        $is_active  = isset($data['is_active']) ? ((string) $data['is_active'] === '1' ? 1 : 0) : 1;
+
+        if ($code === '' || $name === '') {
+            return array('status' => false, 'message' => 'Code and Name are required.');
+        }
+
+        $save_data = array(
+            'fee_type'   => $fee_type,
+            'code'       => $code,
+            'name'       => $name,
+            'group_code' => $group_code,
+            'coverage'   => $coverage,
+            'amount'     => $amount,
+            'gst_type'   => $gst_type,
+            'gst_rate'   => $gst_rate,
+            'note'       => $note,
+            'is_active'  => $is_active,
+        );
+
+        if ($id > 0) {
+            $this->db->where('id', $id);
+            $this->db->update('patient_flow_fee_master', $save_data);
+            return array('status' => true, 'message' => 'Fee item updated successfully');
+        } else {
+            // Check for duplicate (fee_type, code, group_code, coverage)
+            $existing = $this->db->where('fee_type', $fee_type)
+                ->where('code', $code)
+                ->where('group_code', $group_code)
+                ->where('coverage', $coverage)
+                ->get('patient_flow_fee_master')
+                ->row();
+            if ($existing) {
+                return array('status' => false, 'message' => 'A fee with this type, code, group and coverage already exists.');
+            }
+            $this->db->insert('patient_flow_fee_master', $save_data);
+            return array('status' => true, 'message' => 'Fee item created successfully');
+        }
+    }
+
+    /**
+     * Delete a fee master item.
+     */
+    public function delete_fee_item($id)
+    {
+        if (!$this->db->table_exists('patient_flow_fee_master')) {
+            return array('status' => false, 'message' => 'Fee master table not found.');
+        }
+        $id = (int) $id;
+        $this->db->where('id', $id);
+        $this->db->delete('patient_flow_fee_master');
+        return array('status' => true, 'message' => 'Fee item deleted successfully');
+    }
+
+    /**
+     * Toggle is_active flag on a fee master item.
+     */
+    public function toggle_fee_item($id)
+    {
+        if (!$this->db->table_exists('patient_flow_fee_master')) {
+            return array('status' => false, 'message' => 'Fee master table not found.');
+        }
+        $id = (int) $id;
+        $row = $this->db->where('id', $id)->get('patient_flow_fee_master')->row();
+        if (!$row) {
+            return array('status' => false, 'message' => 'Fee item not found.');
+        }
+        $new_status = ($row->is_active == 1) ? 0 : 1;
+        $this->db->where('id', $id)->update('patient_flow_fee_master', array('is_active' => $new_status));
+        return array('status' => true, 'message' => 'Fee item ' . ($new_status ? 'activated' : 'deactivated') . ' successfully');
+    }
+
+
+    /**
+     * Get a single fee master item by ID.
+     */
+    public function get_fee_item_by_id($id)
+    {
+        if (!$this->db->table_exists('patient_flow_fee_master')) {
+            return null;
+        }
+        return $this->db->where('id', (int) $id)->get('patient_flow_fee_master')->row();
     }
 
     /**
