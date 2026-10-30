@@ -1,0 +1,378 @@
+/* ============================================================
+   sh-front-rtl.css
+   ------------------------------------------------------------
+   RTL direction overrides for FRONT-SIDE themes only
+   (atrium + organic). Loaded conditionally by the theme layout
+   files when admin toggle is_active_rtl = 1.
+
+   This file covers BOTH atrium AND organic class names because
+   they share a single conditional <link> but use different
+   markup (atrium uses .quick-grid/.specs-grid/.appt-form,
+   organic uses .q-grid/.depts/.contact-form).
+
+   Audit baselines:
+     - 2026-05-14 (atrium + organic home pages, appointment form)
+   ============================================================ */
+
+
+/* ============================================================
+   A. Grid + flex container direction flips
+   ------------------------------------------------------------
+   Force direction: rtl on horizontal multi-card containers so
+   their grid auto-placement reverses. Atrium and organic class
+   names listed together — only the active theme's classes will
+   match on any given page.
+   ============================================================ */
+
+/* Atrium home + appointment-form grids */
+[dir="rtl"] .quick-grid,
+[dir="rtl"] .specs-grid,
+[dir="rtl"] .stats-grid,
+[dir="rtl"] .loc-grid,
+[dir="rtl"] .testi-grid,
+[dir="rtl"] .ins-grid,
+[dir="rtl"] .ins-row,
+[dir="rtl"] .doc-grid,
+[dir="rtl"] .ftr-grid,
+[dir="rtl"] .appt-grid,
+/* Organic equivalents */
+[dir="rtl"] .q-grid,
+[dir="rtl"] .q-tiles,
+[dir="rtl"] .depts,
+[dir="rtl"] .pill-cloud,
+[dir="rtl"] .stats,
+[dir="rtl"] .ins,
+[dir="rtl"] .appt-form-grid,
+[dir="rtl"] .cf-row {
+    direction: rtl;
+}
+
+
+/* ============================================================
+   B. Atrium header — top utility bar + main nav
+   ============================================================ */
+
+[dir="rtl"] .a-topbar .tb-r {
+    margin-left: 0;
+    margin-right: auto;
+}
+[dir="rtl"] .a-mainbar nav {
+    margin-left: 0;
+    margin-right: auto;
+}
+
+
+/* ============================================================
+   C. Organic header
+   ------------------------------------------------------------
+   .hdr-cta intentionally left to inherit direction: rtl from
+   parent — adding flex-direction: row-reverse would cancel the
+   natural RTL flip (double-reverse bug).
+   ============================================================ */
+
+[dir="rtl"] .o-hdr nav {
+    margin-left: 0;
+    margin-right: auto;
+}
+
+
+/* ============================================================
+   D. Footer (both themes share .ftr-grid / .ftr-bot)
+   ------------------------------------------------------------
+   Intentionally minimal: .ftr-bot uses justify-content: space-
+   between in the original LTR CSS, which is direction-agnostic
+   — RTL inheritance handles the flip automatically (copyright
+   moves to right, social moves to left, space between).
+   Earlier override (flex-direction: row-reverse + margin-right:
+   auto) was double-reversing and pushing both items left. No
+   override needed here.
+   ============================================================ */
+
+
+/* ============================================================
+   E. CTA band — "Ready to Book" text + button
+   ------------------------------------------------------------
+   .cta-card likely uses justify-content for distribution; let
+   RTL inheritance handle the flip. Only padding direction needs
+   logical adjustment for the bullet list.
+   ============================================================ */
+
+[dir="rtl"] .cta-bullets {
+    padding-left: 0;
+    padding-right: 18px;
+}
+
+
+/* ============================================================
+   F. Atrium appointment form — step indicators
+   (Atrium only — organic doesn't use this pattern)
+   ============================================================ */
+
+[dir="rtl"] .appt-step {
+    flex-direction: row-reverse;
+    text-align: right;
+}
+[dir="rtl"] .appt-step .n {
+    margin-right: 0;
+    margin-left: 10px;
+}
+
+
+/* ============================================================
+   G. Form row layouts (atrium .appt-row + organic .cf-row)
+   ============================================================ */
+
+[dir="rtl"] .appt-row,
+[dir="rtl"] .cf-row {
+    direction: rtl;
+}
+[dir="rtl"] .appt-form label,
+[dir="rtl"] .appt-form .ah-sub,
+[dir="rtl"] .contact-form label,
+[dir="rtl"] .cf-field label {
+    text-align: right;
+}
+
+
+/* ============================================================
+   H. Breadcrumbs (page-hero · crumbs)
+   ============================================================ */
+
+[dir="rtl"] .crumbs {
+    direction: rtl;
+}
+
+
+/* ============================================================
+   I. Location cards — internal layout
+   ------------------------------------------------------------
+   Removed flex-direction: row-reverse — these flex containers
+   use justify-content: space-between in original CSS, which
+   handles RTL flip via inherited direction: rtl. Adding
+   row-reverse double-reversed and broke positioning.
+   ============================================================ */
+
+/* No overrides needed for .loc-top / .loc-foot / .loc-addr /
+   .loc-phone / .loc-cta (atrium) or .loc-card-* (organic) —
+   inherited direction: rtl handles them. */
+
+
+/* ============================================================
+   J. Insurer (TPA) section
+   ============================================================ */
+
+[dir="rtl"] .ins-l {
+    text-align: right;
+}
+[dir="rtl"] .link-arrow,
+[dir="rtl"] .ghost-link {
+    direction: rtl;
+}
+
+
+/* ============================================================
+   K. Section headers — split layout
+   ------------------------------------------------------------
+   .sec-head.split and .head-row use display: flex with
+   justify-content: space-between to put heading-block on one
+   side and action-link on the other. Inherited direction: rtl
+   flips this naturally. Removed previous row-reverse override
+   which was double-reversing (heading stuck on LEFT instead of
+   RIGHT in RTL).
+   ============================================================ */
+
+[dir="rtl"] .head-sub {
+    text-align: right;
+}
+
+
+/* ============================================================
+   L. News block / latest news
+   ------------------------------------------------------------
+   .news-item is a flex row with date tile + title text. The
+   text-align: right pushes title text to right side; direction
+   inheritance handles the flex order naturally (date tile
+   ends up on visual right because it's first DOM child).
+   ============================================================ */
+
+[dir="rtl"] .hero-fb-news-item,
+[dir="rtl"] .news-item {
+    text-align: right;
+}
+
+
+/* ============================================================
+   M. Directional arrows — mirror in CTAs
+   ============================================================ */
+
+[dir="rtl"] .submit svg,
+[dir="rtl"] .appt-confirm svg,
+[dir="rtl"] .qmore svg,
+[dir="rtl"] .qtile-more svg,
+[dir="rtl"] .btn-fill svg,
+[dir="rtl"] .loc-cta svg,
+[dir="rtl"] .loc-card-arrow svg,
+[dir="rtl"] .ghost-link svg,
+[dir="rtl"] .link-arrow svg,
+[dir="rtl"] .rtl-mirror {
+    transform: scaleX(-1);
+}
+
+
+/* ============================================================
+   N. Custom-field rendering (PATIENT DETAILS step)
+   ------------------------------------------------------------
+   customfield_helper.php emits Bootstrap 3 markup:
+     <div class="col-md-N">
+       <div class="form-group">
+         <label class="control-label">...</label>
+         <small class="req"> *</small>
+         <input class="form-control"> / <textarea> / <select>
+       </div>
+     </div>
+   Neither atrium nor organic load Bootstrap on the public side,
+   so these classes render with browser defaults — small inline
+   inputs, no styling. Override both for atrium (.appt-form) and
+   organic (.contact-form).
+
+   NOTE: This is also broken in LTR mode (Bootstrap classes
+   unstyled). RTL pass currently doubles as the only styling.
+   If you want LTR fixed too, copy the .contact-form rules below
+   (without the [dir="rtl"] prefix) into:
+     backend/themes/organic/front/css/pages.css
+     backend/themes/atrium/front/css/pages.css
+   ============================================================ */
+
+[dir="rtl"] .contact-form [class^="col-md-"],
+[dir="rtl"] .contact-form [class*=" col-md-"],
+[dir="rtl"] .appt-form [class^="col-md-"],
+[dir="rtl"] .appt-form [class*=" col-md-"] {
+    width: 100%;
+    display: block;
+    margin-bottom: 4px;
+    padding: 0;
+}
+
+[dir="rtl"] .contact-form .form-group,
+[dir="rtl"] .appt-form .form-group {
+    display: block;
+    margin: 0 0 16px;
+    text-align: right;
+}
+
+[dir="rtl"] .contact-form .form-group .control-label,
+[dir="rtl"] .appt-form .form-group .control-label {
+    display: inline-block;
+    text-align: right;
+    margin: 0 0 6px;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    color: rgba(15, 23, 42, .65);
+    font-weight: 700;
+    vertical-align: middle;
+}
+
+[dir="rtl"] .contact-form .form-group .control-label + .req,
+[dir="rtl"] .appt-form .form-group .control-label + .req {
+    display: inline-block;
+    color: #b91c1c;
+    font-size: 13px;
+    margin: 0 4px 6px 0;
+    font-weight: 700;
+    text-transform: none;
+    vertical-align: middle;
+}
+
+[dir="rtl"] .contact-form .form-group .form-control,
+[dir="rtl"] .appt-form .form-group .form-control {
+    display: block;
+    width: 100%;
+    padding: 11px 14px;
+    border: 1px solid rgba(15, 23, 42, .15);
+    border-radius: 12px;
+    font-size: 14.5px;
+    font-family: inherit;
+    line-height: 1.4;
+    background: #fff;
+    color: rgba(15, 23, 42, .95);
+    text-align: right;
+    box-sizing: border-box;
+    transition: border-color .15s ease, box-shadow .15s ease;
+}
+
+[dir="rtl"] .contact-form .form-group .form-control:focus,
+[dir="rtl"] .appt-form .form-group .form-control:focus {
+    outline: none;
+    border-color: rgba(15, 23, 42, .35);
+    box-shadow: 0 0 0 3px rgba(15, 23, 42, .06);
+}
+
+[dir="rtl"] .contact-form .form-group textarea.form-control,
+[dir="rtl"] .appt-form .form-group textarea.form-control {
+    min-height: 90px;
+    resize: vertical;
+}
+
+[dir="rtl"] .contact-form .form-group select.form-control,
+[dir="rtl"] .appt-form .form-group select.form-control {
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%230f172a' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: left 12px center;
+    background-size: 16px;
+    padding-left: 38px;
+}
+
+/* Checkbox / radio custom fields */
+[dir="rtl"] .contact-form .form-group .checkbox,
+[dir="rtl"] .appt-form .form-group .checkbox {
+    display: block;
+    margin: 0;
+    padding: 0;
+}
+
+[dir="rtl"] .contact-form .form-group .checkbox-inline,
+[dir="rtl"] .appt-form .form-group .checkbox-inline {
+    display: inline-flex;
+    flex-direction: row-reverse;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 6px 14px;
+    padding: 0;
+    font-size: 14px;
+    color: rgba(15, 23, 42, .85);
+    font-weight: 500;
+    text-transform: none;
+    letter-spacing: 0;
+    cursor: pointer;
+}
+
+[dir="rtl"] .contact-form .form-group .checkbox-inline input[type="checkbox"],
+[dir="rtl"] .contact-form .form-group .checkbox-inline input[type="radio"],
+[dir="rtl"] .appt-form .form-group .checkbox-inline input[type="checkbox"],
+[dir="rtl"] .appt-form .form-group .checkbox-inline input[type="radio"] {
+    width: 16px;
+    height: 16px;
+    margin: 0;
+    flex: none;
+    accent-color: rgba(15, 23, 42, .85);
+}
+
+/* Text-danger validation message */
+[dir="rtl"] .contact-form .form-group .text-danger,
+[dir="rtl"] .appt-form .form-group .text-danger {
+    display: block;
+    color: #b91c1c;
+    font-size: 12px;
+    margin-top: 4px;
+    text-align: right;
+}
+
+
+/* ============================================================
+   END
+   Visual audit baseline: 2026-05-14.
+   Add further selectors below as new gaps surface.
+   ============================================================ */

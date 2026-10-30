@@ -1,0 +1,119 @@
+/* ── ID Card print stylesheet (standalone) ──────────────────────────────────
+   Self-contained styling for the ID-card PRINT iframe only. Loaded by
+   popupidcard() in:
+     application/views/admin/generatestaffidcard/generatestaffidcardview.php
+     application/views/admin/patientidcard/generatepatientidcard.php
+
+   WHY a separate file: the print iframe is a fresh document that inherits no
+   parent CSS. It used to load the whole backend/css/sh-theme.css (~746 KB),
+   which is slow to fetch+parse inside the throwaway iframe and caused the card
+   to print unstyled (the print() fired before the big file parsed). This tiny
+   file (~3 KB) loads instantly, so the cards always print styled.
+
+   ⚠ KEEP IN SYNC: these rules are copied verbatim from sh-theme.css. The
+   on-page template PREVIEW (staffidcardpreview.php / patientidcardpreview.php)
+   still uses the SAME `.sh-idcard-print` block inside sh-theme.css, so if you
+   change the print design you must edit it in BOTH places:
+     - sh-theme.css  → ".sh-idcard-print" block + the 3 global helpers below
+     - this file
+
+   Dynamic color theming uses the CSS custom property --idcard-header, set as an
+   inline style on the outer table; fallback #453278 is the default template color.
+   ─────────────────────────────────────────────────────────────────────────── */
+
+/* Global helpers (outer grid cell, card background, address td) — copied from
+   sh-theme.css. Theme-variant (dark mode) overrides are intentionally OMITTED:
+   print is always on white paper, so the static light values apply. */
+.sh-idcard-card-bg  { background: #f0f8fd; }
+/* Float + fixed width so a SINGLE card keeps the standard ID-card width instead
+   of stretching to fill the page (a lone <td> in a width:100% table fills 100%
+   and ignores its width attr). Mirrors the legacy .width32 grid cell from
+   sh60r idcard.css. */
+.sh-idcard-outer-td { width: 32.75%; padding: 3px; float: left; }
+.sh-idcard-addr-td  { padding: 4px 8px; position: relative; z-index: 1; }
+
+/* Bootstrap utility classes used in the ID-card markup. The on-page preview
+   gets these from Bootstrap, but the print iframe does NOT load Bootstrap, so
+   without these the address (.text-center), signature (.text-end) and images
+   (.img-fluid) print unaligned/unsized. Values mirror Bootstrap 5. */
+.sh-idcard-print .text-center { text-align: center !important; }
+.sh-idcard-print .text-end    { text-align: right !important; }
+.sh-idcard-print .text-start  { text-align: left !important; }
+.sh-idcard-print .img-fluid   { max-width: 100%; height: auto; }
+
+/* Scoped print block — copied verbatim from sh-theme.css (.sh-idcard-print). */
+.sh-idcard-print * { margin: 0; padding: 0; }
+.sh-idcard-print table {
+  font-family: 'arial'; margin: 0; padding: 0; font-size: 12px; color: #000;
+}
+/* COMPOUND selector (.sh-idcard-print.tc-container, no space): the card <table>
+   carries BOTH classes on the same element, so the descendant form
+   ".sh-idcard-print .tc-container" never matched it — which is why text-align:center
+   and position:relative weren't reaching the table (header inherited left, and the
+   .tcmybg watermark, having no positioned ancestor, escaped to the page bottom).
+   This mirrors the reference (sh60r) where `.tc-container` is position:relative and
+   the watermark anchors to the card table. */
+.sh-idcard-print.tc-container {
+  width: 100%; position: relative; text-align: center;
+  margin-bottom: 20px; padding-bottom: 8px;
+}
+/* Background watermark — copied verbatim from the reference (sh60r idcard.css):
+   a 160×160 centered image faded behind the card, anchored to .tc-container
+   (position:relative). The header/title/address rows carry z-index:1 so they
+   stay above it. */
+.sh-idcard-print .tcmybg {
+  background: top center;
+  background-size: contain;
+  position: absolute; left: 0; bottom: 10px; right: 0;
+  width: 160px; height: 160px;
+  margin-left: auto; margin-right: auto;
+  opacity: 0.10;
+}
+.sh-idcard-print .patientmain { background: #efefef; width: 100%; margin-bottom: 30px; }
+.sh-idcard-print .patienttop img { vertical-align: middle; max-height: 40px; width: auto; margin-right: 6px; }
+.sh-idcard-print .patienttop {
+  background: var(--idcard-header, #453278);
+  padding: 5px 8px; color: #fff; overflow: hidden;
+  position: relative; z-index: 1;
+}
+.sh-idcard-print .sttext1 { font-size: 24px; font-weight: bold; line-height: 30px; }
+.sh-idcard-print .stgray { background: #efefef; padding-top: 5px; padding-bottom: 10px; }
+.sh-idcard-print .staddress { margin-bottom: 0; padding-top: 2px; }
+.sh-idcard-print .stdivider { border-bottom: 2px solid #000; margin-top: 5px; margin-bottom: 5px; }
+.sh-idcard-print .stlist { padding: 0; margin: 0; list-style: none; }
+.sh-idcard-print .stlist li {
+  text-align: left; display: inline-block; width: 100%; padding: 4px 8px;
+}
+.sh-idcard-print .stlist li span { width: 55%; float: right; text-align: left; }
+.sh-idcard-print .stimg { width: 80px; height: auto; margin: 0 auto; }
+.sh-idcard-print .stimg img { width: 100%; height: auto; border-radius: 2px; display: block; }
+.sh-idcard-print .staround { padding: 6px 8px; position: relative; overflow: hidden; z-index: 1; }
+.sh-idcard-print .staround2 { position: relative; z-index: 9; }
+.sh-idcard-print .stbottom {
+  background: var(--idcard-header, #453278);
+  height: 20px; width: 100%; clear: both; margin-bottom: 5px;
+}
+.sh-idcard-print .principal { margin-top: -40px; margin-right: 10px; float: right; position: relative; z-index: 1; }
+.sh-idcard-print .stred { color: #000; }
+.sh-idcard-print .spanlr { padding-left: 5px; padding-right: 5px; }
+.sh-idcard-print .cardleft { width: 20%; float: left; }
+.sh-idcard-print .cardright { width: 77%; float: right; }
+.sh-idcard-print .width32 { width: 32.75%; padding: 3px; float: left; }
+.sh-idcard-print .barcode { display: block; text-align: center; margin-top: 1px; }
+.sh-idcard-print .vertlist { padding: 0; margin: 0; list-style: none; }
+.sh-idcard-print .vertlist li {
+  text-align: left; display: inline-block; width: 100%; color: #000; padding-bottom: 2px;
+}
+.sh-idcard-print .vertlist li span { width: 55%; float: right; }
+/* Barcode sits directly under the photo: same width as the image (.stimg = 80px)
+   and centered in the left column. width:100% makes the barcode fill that 80px. */
+.sh-idcard-print .barcodeimg { width: 80px; height: auto; display: block; margin: 4px auto 0; text-align: center; }
+.sh-idcard-print .barcodeimg img { width: 100%; height: auto; display: block; }
+/* Title td — uses CSS var so it picks up the same header_color as .patienttop */
+.sh-idcard-print .sh-idcard-title-td {
+  color: #fff; font-size: 16px; padding: 3px 0;
+  position: relative; z-index: 1;
+  background: var(--idcard-header, #453278);
+  text-transform: uppercase;
+  text-align: center;
+}

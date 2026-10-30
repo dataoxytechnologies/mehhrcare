@@ -1,0 +1,311 @@
+/* ============================================================
+   sh-patient-rtl.css
+   ------------------------------------------------------------
+   RTL (right-to-left) direction overrides for the PATIENT PANEL.
+   Loaded conditionally by application/views/layout/patient/header.php
+   when MY_Controller exposes $rtl_mode = true (set whenever the
+   active language has languages.is_rtl = 'yes').
+
+   Companion file: backend/bootstrap5/css/bootstrap.rtl.min.css
+     (v5.3.3 — exact version match with LTR build)
+
+   Load order in RTL mode:
+     bootstrap.rtl.min.css  →  sh-tokens.css  →  plugins  →
+     sh-theme.css  →  THIS FILE (last, so rules win)
+
+   SCOPE
+     Patient panel reuses the same SH layout shell classes as
+     the admin panel (.sh-sidebar, .topbar, .tb-*, .content),
+     so the layout-shell rules below mirror sh-admin-rtl.css.
+     Admin-only specialized components (.bcard-grid, .bsm-*,
+     .opd-*, .sr-*, FullCalendar) are intentionally omitted —
+     the patient portal does not render those views.
+
+   See also: sh-admin-rtl.css, sh-front-rtl.css
+   ============================================================ */
+
+
+/* ════════════════════════════════════════════════════════════
+   1. LAYOUT SHELL — sidebar + topbar + content
+   ════════════════════════════════════════════════════════════ */
+
+html[dir="rtl"] .sh-sidebar {
+  left: auto;
+  right: 0;
+  border-right: none;
+  border-left: 1px solid var(--border);
+}
+
+html[dir="rtl"] .topbar {
+  left: 0;
+  right: 220px;
+}
+
+html[dir="rtl"] .content {
+  margin-left: 0;
+  margin-right: 220px;
+}
+
+html[dir="rtl"] body.sidebar-collapsed .topbar { left: 0; right: 64px; }
+html[dir="rtl"] body.sidebar-collapsed .content { margin-left: 0; margin-right: 64px; }
+
+
+/* ════════════════════════════════════════════════════════════
+   2. TOPBAR — module label + right-action cluster
+   ════════════════════════════════════════════════════════════ */
+
+html[dir="rtl"] .tb-module .caret { margin-left: 0; margin-right: 2px; }
+html[dir="rtl"] .tb-divider { margin: 0 4px; }
+html[dir="rtl"] .tb-right { margin-left: 0; margin-right: auto; }
+html[dir="rtl"] .tb-badge { right: auto; left: -2px; }
+
+
+/* ════════════════════════════════════════════════════════════
+   3. SIDEBAR — nav-link icons, active rail, arrows
+   ════════════════════════════════════════════════════════════ */
+
+html[dir="rtl"] .sh-sidebar .sh-section { text-align: right; }
+
+html[dir="rtl"] .sh-sidebar .nav-link.active::before,
+html[dir="rtl"] .sh-sidebar .nav-item.active > .nav-link::before {
+  left: auto;
+  right: 0;
+}
+
+html[dir="rtl"] body.sidebar-collapsed .sh-sidebar .nav-link.active::before,
+html[dir="rtl"] body.sidebar-collapsed .sh-sidebar .nav-item.active > .nav-link::before {
+  left: auto;
+  right: -6px;
+}
+
+html[dir="rtl"] .sh-sidebar .nav-link .sidebar-arrow {
+  margin-left: 0;
+  margin-right: auto;
+  transform: rotate(180deg);
+}
+html[dir="rtl"] .sh-sidebar .nav-link[aria-expanded="true"] .sidebar-arrow {
+  transform: rotate(0deg);
+}
+
+html[dir="rtl"] .sh-sidebar .sh-subnav .nav-link > i.fa-angle-right { transform: scaleX(-1); }
+
+
+/* ════════════════════════════════════════════════════════════
+   4. HOVER TOOLTIP (sidebar rail in collapsed state)
+   ════════════════════════════════════════════════════════════ */
+
+html[dir="rtl"] .sh-rail-tooltip { transform: translateY(-50%) translateX(4px); }
+html[dir="rtl"] .sh-rail-tooltip.show { transform: translateY(-50%) translateX(0); }
+html[dir="rtl"] .sh-rail-tooltip::before { left: auto; right: -4px; }
+
+
+/* ════════════════════════════════════════════════════════════
+   5. SH-CARD / SH-MODAL
+   ════════════════════════════════════════════════════════════ */
+
+html[dir="rtl"] .sh-card-header-title i { margin-right: 0; margin-left: 5px; }
+
+html[dir="rtl"] .sh-sub-title {
+  border-left: none;
+  border-right: 3px solid var(--link);
+  border-radius: var(--radius-md,5px) 0 0 var(--radius-md,5px);
+}
+html[dir="rtl"] .sh-sub-title i { margin-right: 0; margin-left: 6px; }
+
+html[dir="rtl"] .sh-collapse-btn { text-align: right; }
+
+html[dir="rtl"] .modal-body ul { padding-left: 0; padding-right: 18px; }
+
+html[dir="rtl"] .sh-note-block {
+  border-left: none;
+  border-right: 3px solid #cbd5e1;
+}
+
+html[dir="rtl"] .stat-badge { margin-left: 0; margin-right: 10px; }
+
+
+/* ════════════════════════════════════════════════════════════
+   6. TABLES (.table + DataTables)
+   ════════════════════════════════════════════════════════════ */
+
+html[dir="rtl"] .table thead th:first-child { padding-left: 0; padding-right: 24px; }
+html[dir="rtl"] .table thead th:last-child  { padding-right: 0; padding-left: 24px; }
+html[dir="rtl"] .table tbody td:first-child { padding-left: 0; padding-right: 18px; }
+html[dir="rtl"] .table tbody td:last-child  { padding-right: 0; padding-left: 18px; }
+
+html[dir="rtl"] .dataTables_wrapper .top .dataTables_length { margin-left: 0; margin-right: auto; }
+html[dir="rtl"] .dataTables_wrapper .dataTables_filter { text-align: left; }
+html[dir="rtl"] .dataTables_wrapper .dataTables_filter input { margin-left: 0; margin-right: 0.5em; }
+
+html[dir="rtl"] table.dataTable thead > tr > th.sorting,
+html[dir="rtl"] table.dataTable thead > tr > th.sorting_asc,
+html[dir="rtl"] table.dataTable thead > tr > th.sorting_desc {
+  padding-left: 30px;
+  padding-right: 12px;
+}
+html[dir="rtl"] table.dataTable thead .sorting::before,
+html[dir="rtl"] table.dataTable thead .sorting::after,
+html[dir="rtl"] table.dataTable thead .sorting_asc::before,
+html[dir="rtl"] table.dataTable thead .sorting_asc::after,
+html[dir="rtl"] table.dataTable thead .sorting_desc::before,
+html[dir="rtl"] table.dataTable thead .sorting_desc::after {
+  right: auto;
+  left: 12px;
+}
+
+html[dir="rtl"] .paginate_button.previous::before { content: "\f105"; }
+html[dir="rtl"] .paginate_button.next::after      { content: "\f104"; }
+
+html[dir="rtl"] .plist .list-group-item.active {
+  border-left: none;
+  border-right: 3px solid var(--accent);
+}
+
+
+/* ════════════════════════════════════════════════════════════
+   7. PROJECT-SPECIFIC UTILITY CLASSES
+   ════════════════════════════════════════════════════════════ */
+
+html[dir="rtl"] .pl0     { padding-left:  initial !important; padding-right: 0 !important; }
+html[dir="rtl"] .pr0     { padding-right: initial !important; padding-left:  0 !important; }
+html[dir="rtl"] .pl-10   { padding-left:  0; padding-right: 10px; }
+html[dir="rtl"] .pe-10   { padding-right: 0; padding-left:  10px; }
+html[dir="rtl"] .mr5     { margin-right:  0; margin-left:   5px; }
+html[dir="rtl"] .ml5     { margin-left:   0; margin-right:  5px; }
+
+html[dir="rtl"] .border-r { border-right: none; border-left: 1px solid var(--border-light); }
+
+
+/* ════════════════════════════════════════════════════════════
+   8. NOTIFICATIONS / TIMELINE (patient profile, appointments)
+   ════════════════════════════════════════════════════════════ */
+
+html[dir="rtl"] .notifymiddle { padding-right: 0; padding-left: 10px; }
+html[dir="rtl"] .nn-timeline { padding-left: 0; padding-right: 28px; }
+html[dir="rtl"] .nn-actions { margin-left: 0; margin-right: auto; }
+html[dir="rtl"] .nn-note {
+  border-left: none;
+  border-right: 3px solid var(--accent);
+  border-radius: 4px 0 0 4px;
+}
+
+html[dir="rtl"] .singlelist li i { padding-right: 0; padding-left: 10px; }
+html[dir="rtl"] .multilinelist li i { padding-right: 0; padding-left: 6px; }
+html[dir="rtl"] .multilinelist li + li { padding-left: 0; padding-right: 30px; }
+
+
+/* ════════════════════════════════════════════════════════════
+   9. TOASTR — flip notification corner
+   ════════════════════════════════════════════════════════════ */
+
+html[dir="rtl"] #toast-container.toast-top-right    { right: auto; left: 12px; }
+html[dir="rtl"] #toast-container.toast-bottom-right { right: auto; left: 12px; }
+html[dir="rtl"] #toast-container.toast-top-left     { left: auto; right: 12px; }
+html[dir="rtl"] #toast-container.toast-bottom-left  { left: auto; right: 12px; }
+
+html[dir="rtl"] .toast-close-button {
+  right: auto;
+  left: -0.3em;
+  float: left;
+}
+
+
+/* ════════════════════════════════════════════════════════════
+   10. TEMPUS DOMINUS 6 (date/time picker — used in appointment booking)
+   ════════════════════════════════════════════════════════════ */
+
+html[dir="rtl"] .tempus-dominus-widget { direction: rtl; }
+html[dir="rtl"] .tempus-dominus-widget .date-container-days,
+html[dir="rtl"] .tempus-dominus-widget .date-container-months,
+html[dir="rtl"] .tempus-dominus-widget .date-container-years {
+  direction: rtl;
+}
+html[dir="rtl"] .tempus-dominus-widget .previous .fa,
+html[dir="rtl"] .tempus-dominus-widget .next .fa { transform: scaleX(-1); }
+
+
+/* ════════════════════════════════════════════════════════════
+   11. FONT AWESOME — selective directional icons
+   ════════════════════════════════════════════════════════════ */
+
+html[dir="rtl"] .fa-arrow-right,
+html[dir="rtl"] .fa-arrow-left,
+html[dir="rtl"] .fa-chevron-right,
+html[dir="rtl"] .fa-chevron-left,
+html[dir="rtl"] .fa-angle-right,
+html[dir="rtl"] .fa-angle-left,
+html[dir="rtl"] .fa-caret-right,
+html[dir="rtl"] .fa-caret-left,
+html[dir="rtl"] .fa-long-arrow-right,
+html[dir="rtl"] .fa-long-arrow-left,
+html[dir="rtl"] .fa-sign-out,
+html[dir="rtl"] .fa-sign-in,
+html[dir="rtl"] .fa-share,
+html[dir="rtl"] .fa-reply {
+  transform: scaleX(-1);
+}
+
+
+/* ════════════════════════════════════════════════════════════
+   12. FORMS — labels, input-group, checkbox/radio
+   ════════════════════════════════════════════════════════════ */
+
+html[dir="rtl"] .form-horizontal .control-label { text-align: left; }
+@media (max-width: 768px) {
+  html[dir="rtl"] .form-horizontal .control-label { text-align: right; padding-left: 0; padding-right: 0; }
+}
+
+html[dir="rtl"] .form-horizontal .form-group > .control-label + [class*="col-"] { padding-left: 12px; padding-right: 0; }
+html[dir="rtl"] .tab-content .card-body .mb-3 > .form-label + [class*="col-"] { padding-left: 12px; padding-right: 0; }
+
+html[dir="rtl"] .form-check { padding-left: 0; padding-right: 1.5em; }
+html[dir="rtl"] .form-check .form-check-input { float: right; margin-left: 0.5em; margin-right: -1.5em; }
+html[dir="rtl"] .form-check-inline { margin-right: 0; margin-left: 1rem; }
+
+
+/* ════════════════════════════════════════════════════════════
+   13. PATIENT TOPBAR avatar + dropdown
+   ════════════════════════════════════════════════════════════ */
+
+/* Patient-specific avatar styling — Bootstrap RTL handles gap/dropdown automatically,
+   but verify the chevron icon mirrors correctly */
+html[dir="rtl"] .tb-patient-avatar { margin-left: 0; margin-right: 0; }
+
+
+/* ════════════════════════════════════════════════════════════
+   14. IPD PROFILE — rellist + column separator
+   Used in: application/views/patient/ipdProfile.php
+   sh-theme.css source rules at 3199-3202 (.rellist-body table padding)
+   and 7463 (.sh-col-sep-left).
+   ════════════════════════════════════════════════════════════ */
+
+html[dir="rtl"] .rellist-body .table > thead > tr > th:first-child,
+html[dir="rtl"] .rellist-body .table > tbody > tr > td:first-child { padding-left: 0; padding-right: 16px; }
+html[dir="rtl"] .rellist-body .table > thead > tr > th:last-child,
+html[dir="rtl"] .rellist-body .table > tbody > tr > td:last-child  { padding-right: 0; padding-left: 16px; }
+
+html[dir="rtl"] .sh-col-sep-left {
+  border-left: none;
+  border-right: 1px solid var(--border);
+  padding-left: 0;
+  padding-right: 12px;
+}
+
+
+/* ════════════════════════════════════════════════════════════
+   15. IPD BILL — totals table inline alignment
+   ipdBill.php:141 uses style="width:50%; margin-left:auto" to pin
+   the totals table to the visual right. In RTL the totals table
+   should pin to the visual left (document end). Inline style wins
+   over class specificity, so !important is required.
+   ════════════════════════════════════════════════════════════ */
+
+html[dir="rtl"] .sh-print-table[style*="margin-left:auto"] {
+  margin-left: 0 !important;
+  margin-right: auto !important;
+}
+
+
+/* ============================================================
+   END sh-patient-rtl.css
+   ============================================================ */

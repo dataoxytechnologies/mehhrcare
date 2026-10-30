@@ -1,0 +1,26 @@
+<?php
+// F-series seed rows FLKO-1, FLKO-2 (62 rows).
+return array(
+array('FLKO-1','Q1S1','F001'),array('FLKO-1','Q1S2','F002'),array('FLKO-1','Q1S3','F003'),
+array('FLKO-1','Q1S4','F004'),array('FLKO-1','Q2S1','F005'),array('FLKO-1','Q2S2','F006'),
+array('FLKO-1','Q2S3','F007'),array('FLKO-1','Q3S1','F008'),array('FLKO-1','Q3S2','F009'),
+array('FLKO-1','Q3S3','F010'),array('FLKO-1','Q4S1','F041'),array('FLKO-1','Q4S2','F042'),
+array('FLKO-1','Q4S3','F013'),array('FLKO-1','Q5S1','F014'),array('FLKO-1','Q5S2','F011'),
+array('FLKO-1','Q5S3','F016'),array('FLKO-1','Q6S1','F017'),array('FLKO-1','Q6S2','F018'),
+array('FLKO-1','Q6S3','F043'),array('FLKO-1','Q7S1','F021'),array('FLKO-1','Q7S2','F024'),
+array('FLKO-1','Q7S3','F022'),array('FLKO-1','Q8S1','F023'),array('FLKO-1','Q8S2','F003'),
+array('FLKO-1','Q8S3','F036'),array('FLKO-1','Q9S1','F026'),array('FLKO-1','Q9S2','F027'),
+array('FLKO-1','Q9S3','F028'),array('FLKO-1','Q10S1','F037'),array('FLKO-1','Q10S2','F030'),
+array('FLKO-1','Q10S3','F031'),
+array('FLKO-2','Q1S1','F001'),array('FLKO-2','Q1S2','F002'),array('FLKO-2','Q1S3','F003'),
+array('FLKO-2','Q1S4','F004'),array('FLKO-2','Q2S1','F005'),array('FLKO-2','Q2S2','F006'),
+array('FLKO-2','Q2S3','F007'),array('FLKO-2','Q3S1','F008'),array('FLKO-2','Q3S2','F009'),
+array('FLKO-2','Q3S3','F010'),array('FLKO-2','Q4S1','F041'),array('FLKO-2','Q4S2','F042'),
+array('FLKO-2','Q4S3','F013'),array('FLKO-2','Q5S1','F014'),array('FLKO-2','Q5S2','F011'),
+array('FLKO-2','Q5S3','F016'),array('FLKO-2','Q6S1','F017'),array('FLKO-2','Q6S2','F018'),
+array('FLKO-2','Q6S3','F043'),array('FLKO-2','Q7S1','F021'),array('FLKO-2','Q7S2','F024'),
+array('FLKO-2','Q7S3','F022'),array('FLKO-2','Q8S1','F023'),array('FLKO-2','Q8S2','F003'),
+array('FLKO-2','Q8S3','F036'),array('FLKO-2','Q9S1','F026'),array('FLKO-2','Q9S2','F027'),
+array('FLKO-2','Q9S3','F028'),array('FLKO-2','Q10S1','F029'),array('FLKO-2','Q10S2','F030'),
+array('FLKO-2','Q10S3','F031'),
+);

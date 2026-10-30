@@ -1,0 +1,557 @@
+/* ============================================================
+   sh-admin-rtl.css
+   ------------------------------------------------------------
+   RTL (right-to-left) direction overrides for the ADMIN PANEL.
+   Loaded conditionally by application/views/layout/header.php
+   when MY_Controller exposes $rtl_mode = true (set whenever
+   the active language has languages.is_rtl = 'yes').
+
+   Companion file: backend/bootstrap5/css/bootstrap.rtl.min.css
+     (v5.3.3, exact version match with LTR build at
+      backend/bootstrap5/css/bootstrap.min.css)
+
+   Load order in RTL mode:
+     bootstrap.rtl.min.css  →  sh-tokens.css  →  plugins  →
+     sh-theme.css  →  THIS FILE (last, so rules win)
+
+   ARCHITECTURE NOTE
+     Bootstrap 5 RTL build already mirrors:
+       .ms-*, .me-*, .ps-*, .pe-*, .float-start/.float-end,
+       .text-start/.text-end, .dropdown-menu-end, grid order.
+     So this file only flips:
+       1. The SH layout shell (fixed 220px sidebar + topbar offset)
+       2. Project-specific custom utility classes (.mr5, .ml5,
+          .pl0, .pr0, .border-r, etc. — not Bootstrap)
+       3. SH custom components (.sh-sidebar, .topbar, .sh-card,
+          .sh-modal, .sh-table, .plist, .bcard-grid, etc.)
+       4. Plugin tweaks (Toastr position, DataTables, Select2,
+          Tempus Dominus, FullCalendar arrows)
+
+   See also: sh-patient-rtl.css, sh-front-rtl.css
+   ============================================================ */
+
+
+/* ════════════════════════════════════════════════════════════
+   1. LAYOUT SHELL — sidebar + topbar + content
+   ════════════════════════════════════════════════════════════ */
+
+/* Sidebar moves to the right edge */
+html[dir="rtl"] .sh-sidebar {
+  left: auto;
+  right: 0;
+  border-right: none;
+  border-left: 1px solid var(--border);
+}
+
+/* Topbar starts at right=220px (where sidebar ends going leftward) */
+html[dir="rtl"] .topbar {
+  left: 0;
+  right: 220px;
+}
+
+/* Main content pushed right-side instead of left */
+html[dir="rtl"] .content {
+  margin-left: 0;
+  margin-right: 220px;
+}
+
+/* Collapsed (64px) sidebar — same flip with the smaller width */
+html[dir="rtl"] body.sidebar-collapsed .topbar { left: 0; right: 64px; }
+html[dir="rtl"] body.sidebar-collapsed .content { margin-left: 0; margin-right: 64px; }
+
+
+/* ════════════════════════════════════════════════════════════
+   2. TOPBAR — module label, search, right-action cluster
+   ════════════════════════════════════════════════════════════ */
+
+html[dir="rtl"] .tb-module .caret { margin-left: 0; margin-right: 2px; }
+html[dir="rtl"] .tb-tabs a { margin-left: 0; margin-right: 0; }
+html[dir="rtl"] .tb-divider { margin: 0 4px; }
+
+/* Right-side action cluster — keep cluster anchored to the LEADING edge in RTL (visually right→left) */
+html[dir="rtl"] .tb-right { margin-left: 0; margin-right: auto; }
+
+/* Notification badge — flip from right-edge to left-edge of the button */
+html[dir="rtl"] .tb-badge {
+  right: auto;
+  left: -2px;
+}
+
+
+/* ════════════════════════════════════════════════════════════
+   3. SIDEBAR — nav-link icons, arrows, active indicator
+   ════════════════════════════════════════════════════════════ */
+
+/* Section labels — preserve leading-edge padding */
+html[dir="rtl"] .sh-sidebar .sh-section { text-align: right; }
+
+/* The active-item left rail (::before pseudo) flips to the right edge */
+html[dir="rtl"] .sh-sidebar .nav-link.active::before,
+html[dir="rtl"] .sh-sidebar .nav-item.active > .nav-link::before {
+  left: auto;
+  right: 0;
+}
+
+/* In collapsed mode the rail sits just outside the sidebar — flip */
+html[dir="rtl"] body.sidebar-collapsed .sh-sidebar .nav-link.active::before,
+html[dir="rtl"] body.sidebar-collapsed .sh-sidebar .nav-item.active > .nav-link::before {
+  left: auto;
+  right: -6px;
+}
+
+/* Expander arrow — push to LEADING edge (= LTR-right = RTL-left) */
+html[dir="rtl"] .sh-sidebar .nav-link .sidebar-arrow {
+  margin-left: 0;
+  margin-right: auto;
+  transform: rotate(180deg);
+}
+html[dir="rtl"] .sh-sidebar .nav-link[aria-expanded="true"] .sidebar-arrow {
+  transform: rotate(0deg);
+}
+
+/* Sub-nav indentation (LTR has padding-left, RTL needs padding-right) */
+html[dir="rtl"] .sh-sidebar .sh-subnav .nav-link > i.fa-angle-right { transform: scaleX(-1); }
+
+
+/* ════════════════════════════════════════════════════════════
+   4. HOVER TOOLTIP (rail) — flips to left of sidebar
+   ════════════════════════════════════════════════════════════ */
+
+html[dir="rtl"] .sh-rail-tooltip {
+  transform: translateY(-50%) translateX(4px);
+}
+html[dir="rtl"] .sh-rail-tooltip.show {
+  transform: translateY(-50%) translateX(0);
+}
+html[dir="rtl"] .sh-rail-tooltip::before {
+  left: auto;
+  right: -4px;
+}
+
+
+/* ════════════════════════════════════════════════════════════
+   5. SH-CARD / SH-MODAL / FORMS
+   ════════════════════════════════════════════════════════════ */
+
+/* Card header icons — flip margin */
+html[dir="rtl"] .sh-card-header-title i { margin-right: 0; margin-left: 5px; }
+
+/* Sub-title border accent flips from left to right */
+html[dir="rtl"] .sh-sub-title {
+  border-left: none;
+  border-right: 3px solid var(--link);
+  border-radius: var(--radius-md,5px) 0 0 var(--radius-md,5px);
+}
+html[dir="rtl"] .sh-sub-title i { margin-right: 0; margin-left: 6px; }
+
+/* Collapse buttons — text aligned to right in RTL */
+html[dir="rtl"] .sh-collapse-btn { text-align: right; }
+
+/* Modal lists — bullet padding flips */
+html[dir="rtl"] .modal-body ul { padding-left: 0; padding-right: 18px; }
+
+/* Notes blocks — accent border flips */
+html[dir="rtl"] .sh-note-block {
+  border-left: none;
+  border-right: 3px solid #cbd5e1;
+}
+
+/* Stat-badges */
+html[dir="rtl"] .stat-badge { margin-left: 0; margin-right: 10px; }
+
+
+/* ════════════════════════════════════════════════════════════
+   6. TABLES (.table + DataTables)
+   ════════════════════════════════════════════════════════════ */
+
+/* First/last column gutters — flip */
+html[dir="rtl"] .table thead th:first-child { padding-left: 0; padding-right: 24px; }
+html[dir="rtl"] .table thead th:last-child  { padding-right: 0; padding-left: 24px; }
+html[dir="rtl"] .table tbody td:first-child { padding-left: 0; padding-right: 18px; }
+html[dir="rtl"] .table tbody td:last-child  { padding-right: 0; padding-left: 18px; }
+
+/* DataTables top widgets — length selector aligned to leading edge */
+html[dir="rtl"] .dataTables_wrapper .top .dataTables_length { margin-left: 0; margin-right: auto; }
+html[dir="rtl"] .dataTables_wrapper .dataTables_filter { text-align: left; }
+html[dir="rtl"] .dataTables_wrapper .dataTables_filter input { margin-left: 0; margin-right: 0.5em; }
+
+/* DataTables sort icons — keep on trailing edge of the column header */
+html[dir="rtl"] table.dataTable thead > tr > th.sorting,
+html[dir="rtl"] table.dataTable thead > tr > th.sorting_asc,
+html[dir="rtl"] table.dataTable thead > tr > th.sorting_desc {
+  padding-left: 30px;
+  padding-right: 12px;
+}
+html[dir="rtl"] table.dataTable thead .sorting::before,
+html[dir="rtl"] table.dataTable thead .sorting::after,
+html[dir="rtl"] table.dataTable thead .sorting_asc::before,
+html[dir="rtl"] table.dataTable thead .sorting_asc::after,
+html[dir="rtl"] table.dataTable thead .sorting_desc::before,
+html[dir="rtl"] table.dataTable thead .sorting_desc::after {
+  right: auto;
+  left: 12px;
+}
+
+/* DataTables pagination — flip arrows */
+html[dir="rtl"] .paginate_button.previous::before { content: "\f105"; }
+html[dir="rtl"] .paginate_button.next::after      { content: "\f104"; }
+
+/* List-group active item rail */
+html[dir="rtl"] .plist-item.active {
+  border-left-color: transparent;
+  border-right: 3px solid var(--accent);
+}
+html[dir="rtl"] .plist .list-group-item.active {
+  border-left: none;
+  border-right: 3px solid var(--accent);
+}
+
+/* Related-record list cell gutters */
+html[dir="rtl"] .rellist-body .table > tbody > tr > td:first-child { padding-left: 0; padding-right: 16px; }
+html[dir="rtl"] .rellist-body .table > tbody > tr > td:last-child  { padding-right: 0; padding-left: 16px; }
+
+
+/* ════════════════════════════════════════════════════════════
+   7. PROJECT-SPECIFIC UTILITY CLASSES
+   ════════════════════════════════════════════════════════════ */
+
+/* Padding/Margin atomics — flip the meaning so visual result matches LTR intent */
+html[dir="rtl"] .pl0     { padding-left:  initial !important; padding-right: 0 !important; }
+html[dir="rtl"] .pr0     { padding-right: initial !important; padding-left:  0 !important; }
+html[dir="rtl"] .pl-10   { padding-left:  0; padding-right: 10px; }
+html[dir="rtl"] .pe-10   { padding-right: 0; padding-left:  10px; }
+html[dir="rtl"] .mr5     { margin-right:  0; margin-left:   5px; }
+html[dir="rtl"] .ml5     { margin-left:   0; margin-right:  5px; }
+
+/* Border utility */
+html[dir="rtl"] .border-r { border-right: none; border-left: 1px solid var(--border-light); }
+
+/* Column separators */
+html[dir="rtl"] .sh-col-sep-left {
+  border-left: none;
+  border-right: 1px solid var(--border);
+  padding-left: 0;
+  padding-right: 12px;
+}
+
+
+/* ════════════════════════════════════════════════════════════
+   8. SPECIALIZED LAYOUTS (bcard, OPD, billing, etc.)
+   ════════════════════════════════════════════════════════════ */
+
+/* Billing card grid — separator flips */
+html[dir="rtl"] .bcard-grid .field:nth-child(4n) {
+  border-right: 1px solid var(--border);
+  border-left: none;
+}
+html[dir="rtl"] .bcard-grid .field:nth-child(4n+1) {
+  border-right: none;
+}
+
+/* Bed-info-item separator flip */
+html[dir="rtl"] .bii:nth-child(4n) {
+  border-right: 1px solid var(--border);
+  border-left: none;
+}
+@media (max-width: 992px) {
+  html[dir="rtl"] .bii:nth-child(2n) {
+    border-right: 1px solid var(--border);
+    border-left: none;
+  }
+  html[dir="rtl"] .bii:nth-child(2n+1) {
+    border-right: none;
+  }
+}
+
+/* Bedstatus monitor utilities */
+html[dir="rtl"] .bsm-gauge,
+html[dir="rtl"] .bsm-fbtns,
+html[dir="rtl"] .bsm-ward-pills,
+html[dir="rtl"] .bsm-legend-tip {
+  margin-left: 0;
+  margin-right: auto;
+}
+
+/* Bloodbank group column */
+html[dir="rtl"] .bb-group-col {
+  border-right: none;
+  border-left: 1px solid var(--border);
+  padding-right: 0;
+  padding-left: 12px;
+}
+html[dir="rtl"] .bb-content { padding-left: 0; padding-right: 18px; }
+
+/* Sales receipt summary fields — numbers stay right-aligned in RTL Arabic too (numeric, not flip) */
+/* (No override needed — text-align: right is correct in both LTR and RTL for numbers) */
+
+/* OPD medication card divider */
+html[dir="rtl"] .opd-med-v2 .med-name-col {
+  padding-right: 0;
+  padding-left: 12px;
+  border-right: none;
+  border-left: 1px dashed var(--border);
+  margin-right: 0;
+  margin-left: 14px;
+}
+
+/* OPD patient-photo cell border */
+html[dir="rtl"] .opd-pd-photo-cell {
+  border-left: none;
+  border-right: 1px solid var(--border);
+}
+
+/* Image wrap fix — RTL flips the picture-anchor side */
+html[dir="rtl"] .img-wrap-fix-right {
+  padding-left: 0;
+  padding-right: 108px;
+}
+html[dir="rtl"] .grid_div .img-wrap-fix-right { padding-right: 0; }
+
+
+/* ════════════════════════════════════════════════════════════
+   9. CHAT / NOTIFICATIONS / TIMELINE
+   ════════════════════════════════════════════════════════════ */
+
+html[dir="rtl"] .notifymiddle { padding-right: 0; padding-left: 10px; }
+html[dir="rtl"] .nn-timeline { padding-left: 0; padding-right: 28px; }
+html[dir="rtl"] .nn-actions { margin-left: 0; margin-right: auto; }
+html[dir="rtl"] .nn-note {
+  border-left: none;
+  border-right: 3px solid var(--accent);
+  border-radius: 4px 0 0 4px;
+}
+
+@media (min-width: 768px) {
+  html[dir="rtl"] .note-content { padding-left: 0; padding-right: 62px; }
+}
+
+/* Lists with leading bullet/icon */
+html[dir="rtl"] .singlelist li i { padding-right: 0; padding-left: 10px; }
+html[dir="rtl"] .multilinelist li i { padding-right: 0; padding-left: 6px; }
+html[dir="rtl"] .multilinelist li + li { padding-left: 0; padding-right: 30px; }
+
+/* Social media row in footer */
+html[dir="rtl"] .social-media { margin-left: 0; margin-right: auto; }
+html[dir="rtl"] .bubble2 a { margin-left: 0; margin-right: 6px; }
+
+
+/* ════════════════════════════════════════════════════════════
+   10. TOASTR — flip notification stack to opposite corner
+   ════════════════════════════════════════════════════════════ */
+
+/* When RTL is active, toast notifications should appear on the opposite
+   horizontal corner so they don't visually feel "stuck" to the dominant edge */
+html[dir="rtl"] #toast-container.toast-top-right    { right: auto; left: 12px; }
+html[dir="rtl"] #toast-container.toast-bottom-right { right: auto; left: 12px; }
+html[dir="rtl"] #toast-container.toast-top-left     { left: auto; right: 12px; }
+html[dir="rtl"] #toast-container.toast-bottom-left  { left: auto; right: 12px; }
+
+/* Toast close button — flip to leading edge */
+html[dir="rtl"] .toast-close-button {
+  right: auto;
+  left: -0.3em;
+  float: left;
+}
+
+
+/* ════════════════════════════════════════════════════════════
+   11. SELECT2 — dropdown arrow + clear button flip
+   ════════════════════════════════════════════════════════════ */
+
+html[dir="rtl"] .select2-container--default .select2-selection--single .select2-selection__arrow {
+  right: auto;
+  left: 1px;
+}
+html[dir="rtl"] .select2-container--default .select2-selection--single .select2-selection__clear {
+  margin-right: 0;
+  margin-left: 20px;
+  float: left;
+}
+html[dir="rtl"] .select2-container--default .select2-selection--multiple .select2-selection__choice {
+  margin-left: 0;
+  margin-right: 5px;
+  float: right;
+}
+html[dir="rtl"] .select2-container--default .select2-selection--multiple .select2-selection__choice__remove {
+  margin-right: 0;
+  margin-left: 2px;
+  float: right;
+}
+html[dir="rtl"] .select2-container--default .select2-search--inline .select2-search__field { text-align: right; }
+
+
+/* ════════════════════════════════════════════════════════════
+   12. TEMPUS DOMINUS 6 (date/time picker)
+   ════════════════════════════════════════════════════════════ */
+
+html[dir="rtl"] .tempus-dominus-widget { direction: rtl; }
+html[dir="rtl"] .tempus-dominus-widget .date-container-days,
+html[dir="rtl"] .tempus-dominus-widget .date-container-months,
+html[dir="rtl"] .tempus-dominus-widget .date-container-years {
+  direction: rtl;
+}
+/* Calendar prev/next chevrons — flip arrow direction so "next" still moves forward in time visually */
+html[dir="rtl"] .tempus-dominus-widget .previous .fa,
+html[dir="rtl"] .tempus-dominus-widget .next .fa { transform: scaleX(-1); }
+
+
+/* ════════════════════════════════════════════════════════════
+   13. FULLCALENDAR — button group + week flow
+   ════════════════════════════════════════════════════════════ */
+
+html[dir="rtl"] .fc-toolbar { direction: rtl; }
+html[dir="rtl"] .fc-toolbar .fc-button-group { flex-direction: row-reverse; }
+html[dir="rtl"] .fc-prev-button .fc-icon,
+html[dir="rtl"] .fc-next-button .fc-icon { transform: scaleX(-1); }
+
+
+/* ════════════════════════════════════════════════════════════
+   14. FONT AWESOME — selective icon mirroring
+   ════════════════════════════════════════════════════════════ */
+
+/* Directional icons that semantically mean "forward/back" or
+   "previous/next" should mirror in RTL. Decorative icons (search,
+   home, gear, check) must NOT mirror. */
+html[dir="rtl"] .fa-arrow-right,
+html[dir="rtl"] .fa-arrow-left,
+html[dir="rtl"] .fa-chevron-right,
+html[dir="rtl"] .fa-chevron-left,
+html[dir="rtl"] .fa-angle-right,
+html[dir="rtl"] .fa-angle-left,
+html[dir="rtl"] .fa-caret-right,
+html[dir="rtl"] .fa-caret-left,
+html[dir="rtl"] .fa-long-arrow-right,
+html[dir="rtl"] .fa-long-arrow-left,
+html[dir="rtl"] .fa-sign-out,
+html[dir="rtl"] .fa-sign-in,
+html[dir="rtl"] .fa-share,
+html[dir="rtl"] .fa-reply,
+html[dir="rtl"] .fa-rotate-left,
+html[dir="rtl"] .fa-rotate-right {
+  transform: scaleX(-1);
+}
+
+/* Sidebar arrow (fa-angle-right inside .sh-sidebar) is already handled above */
+
+
+/* ════════════════════════════════════════════════════════════
+   15. FORMS — labels, input-group, checkbox/radio
+   ════════════════════════════════════════════════════════════ */
+
+/* Form label alignment for horizontal layouts */
+html[dir="rtl"] .form-horizontal .control-label { text-align: left; }
+@media (max-width: 768px) {
+  html[dir="rtl"] .form-horizontal .control-label { text-align: right; padding-left: 0; padding-right: 0; }
+}
+
+/* Form-horizontal column padding flips */
+html[dir="rtl"] .form-horizontal .form-group > .control-label + [class*="col-"] { padding-left: 12px; padding-right: 0; }
+html[dir="rtl"] .tab-content .card-body .mb-3 > .form-label + [class*="col-"] { padding-left: 12px; padding-right: 0; }
+html[dir="rtl"] .tab-content .col-md-offset-3 { margin-left: 0 !important; margin-right: auto !important; }
+
+/* Form-check (radio/checkbox) — input/label spacing flip */
+html[dir="rtl"] .form-check { padding-left: 0; padding-right: 1.5em; }
+html[dir="rtl"] .form-check .form-check-input { float: right; margin-left: 0.5em; margin-right: -1.5em; }
+html[dir="rtl"] .meeting-staff-item .form-check { padding-left: 0; padding-right: 1.2em; }
+html[dir="rtl"] .meeting-staff-item .form-check-input { margin-left: 0.5em; margin-right: -1.2em; }
+html[dir="rtl"] .form-check-inline { margin-right: 0; margin-left: 1rem; }
+
+/* Wrapper dropdown form-check */
+html[dir="rtl"] .wrapper-dropdown-3 .dropdown li.option .form-check-input {
+  margin-left: 0;
+  margin-right: -22px;
+}
+
+
+/* ════════════════════════════════════════════════════════════
+   16. TAB SCROLL CHEVRONS
+   ════════════════════════════════════════════════════════════ */
+
+html[dir="rtl"] .tabscroll-prev {
+  left: auto;
+  right: 0;
+  border-right: none;
+  border-left: 1px solid #eef0f3;
+  box-shadow: -6px 0 6px -4px rgba(0,0,0,.06);
+}
+html[dir="rtl"] .tabscroll-next {
+  right: auto;
+  left: 0;
+  border-left: none;
+  border-right: 1px solid #eef0f3;
+  box-shadow: 6px 0 6px -4px rgba(0,0,0,.06);
+}
+html[dir="rtl"] .tabscroll-prev i,
+html[dir="rtl"] .tabscroll-next i { transform: scaleX(-1); }
+
+
+/* ════════════════════════════════════════════════════════════
+   17. RECEIPTS & PRINT-FRIENDLY LAYOUTS
+   ════════════════════════════════════════════════════════════ */
+
+html[dir="rtl"] .sr-section-head i { margin-right: 0; margin-left: 5px; }
+html[dir="rtl"] .sr-prev-wrap,
+html[dir="rtl"] .sr-refund-wrap,
+html[dir="rtl"] .sr-prev-detail-wrap {
+  border-left: none;
+  border-right: 4px solid; /* color set per element in sh-theme.css remains */
+  border-radius: 0 5px 5px 0;
+}
+html[dir="rtl"] .sr-prev-wrap { border-right-color: #e67e22; }
+html[dir="rtl"] .sr-refund-wrap { border-right-color: #27ae60; }
+html[dir="rtl"] .sr-prev-detail-wrap { border-right-color: #e67e22; }
+html[dir="rtl"] .sr-prev-dot { margin-right: 0; margin-left: 5px; }
+
+/* Updater hero */
+html[dir="rtl"] .sh-updater-hero-right {
+  padding-left: 0;
+  padding-right: 16px;
+  border-left: none;
+  border-right: 2px solid var(--border, #dee2e6);
+}
+
+
+/* ════════════════════════════════════════════════════════════
+   18. ATTENDANCE / STAFF UTILITIES
+   ════════════════════════════════════════════════════════════ */
+
+html[dir="rtl"] .att-type-cell .att-key { margin-left: 0; margin-right: 4px; }
+html[dir="rtl"] .sh-qs-item {
+  border-right: none;
+  border-left: 1px solid var(--border);
+}
+html[dir="rtl"] .sh-qs-item:last-child { border-left: none; }
+
+
+/* ════════════════════════════════════════════════════════════
+   19. TOOLTIPS — Bootstrap tooltip arrow colors (already direction-aware via auto placement)
+   ════════════════════════════════════════════════════════════ */
+/* Bootstrap handles tooltip arrow placement automatically — no override needed */
+
+
+/* ════════════════════════════════════════════════════════════
+   20. CONTENT-LAYOUT NOTES & EDGE CASES
+   ════════════════════════════════════════════════════════════ */
+
+/* CMS-form column padding */
+html[dir="rtl"] .frontcms-form .card-body .mb-3 > .form-label + [class*="col-"] { padding-left: 12px; padding-right: 0; }
+
+/* Center notice meta border (e.g., on staff/patient profile) */
+html[dir="rtl"] .notice-meta-item:last-child {
+  border-right: 1px solid var(--border);
+  border-left: none;
+}
+
+/* Counter buttons divider */
+html[dir="rtl"] .sh-cnt-btn:first-child {
+  border-right: none;
+  border-left: 1px solid var(--border);
+}
+
+/* Service-version-page title bar (left-shadow indicator) */
+html[dir="rtl"] .svp-tb-title { margin-right: 0; margin-left: auto; }
+
+
+/* ============================================================
+   END sh-admin-rtl.css
+   ============================================================ */

@@ -1,0 +1,168 @@
+/* ============================================================
+   SMART HOSPITAL · DESIGN TOKENS
+   CSS custom properties for all 3 theme variants.
+   Load AFTER Bootstrap 5, BEFORE sh-theme.css.
+
+   Usage: <body class="variant-a|b|c" data-chrome="module-key">
+   ============================================================ */
+
+/* ---------- TYPOGRAPHY TOKENS · shared across all variants ----------
+   Approved 2026-05-15. Mock: Wfdocs/typography-samples.html
+   Scale: 8 sizes (display→micro) replaces previously hardcoded 18+ sizes.
+   Body baseline lifted 13px → 14px for enterprise readability.
+   See: project_typography_rollout_progress.md memory file.
+   --------------------------------------------------------------- */
+:root {
+  /* Size scale — multiplied by --text-scale (Theme Studio "Text size" buttons).
+     --text-scale defaults to 1; flips to 0.9 / 1.1 / 1.25 for compact/comfort/large. */
+  --fs-display: calc(56px * var(--text-scale, 1));   /* Front CMS hero only (Manrope) */
+  --fs-h1:      calc(24px * var(--text-scale, 1));   /* Page title — one per page */
+  --fs-h2:      calc(20px * var(--text-scale, 1));   /* Section header */
+  --fs-h3:      calc(16px * var(--text-scale, 1));   /* Card / panel title */
+  --fs-h4:      calc(14px * var(--text-scale, 1));   /* Sub-section */
+  --fs-h5:      calc(18px * var(--text-scale, 1));   /* Modal title only */
+  --fs-h6:      calc(13px * var(--text-scale, 1));   /* Small label heading */
+  --fs-body:    calc(14px * var(--text-scale, 1));   /* Body, input, table cell */
+  --fs-sm:      calc(12px * var(--text-scale, 1));   /* Caption, meta, help text, table header */
+  --fs-micro:   calc(11px * var(--text-scale, 1));   /* Uppercase micro-labels, badge, sidebar section */
+
+  /* Weight scale */
+  --fw-regular:  400;   /* Body, table cell, paragraph */
+  --fw-medium:   500;   /* DEPRECATED in new code (kept for legacy refs) */
+  --fw-semibold: 600;   /* Form labels, button text, nav link */
+  --fw-bold:     700;   /* All headings, card title, modal title, KPI value */
+  --fw-heavy:    800;   /* DEPRECATED except --fs-display (front hero) */
+
+  /* Line-height scale */
+  --lh-tight:   1.2;    /* Display only */
+  --lh-snug:    1.35;   /* H1 / H2 */
+  --lh-normal:  1.5;    /* Body, paragraphs */
+  --lh-loose:   1.6;    /* Long-form reading */
+
+  /* Letter-spacing scale */
+  --ls-tighter: -0.022em; /* Display only */
+  --ls-tight:   -0.01em;  /* H1 / H2 */
+  --ls-normal:   0;       /* Body, default */
+  --ls-wide:     0.04em;  /* Uppercase micro-labels (single value, replaces .03/.05/.06/.07/.08em mix) */
+
+  /* Display font family (used only by --fs-display roles; UI uses --font per variant) */
+  --font-display: 'Manrope', 'Inter', system-ui, sans-serif;
+
+  /* Theme Studio overlay tokens (added 2026-05-16)
+     Defaults; overridden per-user by Theme Studio inline <style> block at higher source order.
+     --text-scale: multiplier applied to body font-size (compact 0.92, normal 1, large 1.12)
+     --density-y:  vertical rhythm spacing for padded surfaces (compact 0.5rem, comfortable 0.75rem, spacious 1rem) */
+  --text-scale: 1;
+  --density-y: 0.75rem;
+}
+
+
+/* ---------- VARIANT A · Zoho Classic (default) ---------- */
+body.variant-a {
+  --bg: #F5F7FA; --bg-2: #EDF0F5;
+  --surface: #FFFFFF; --surface-2: #F8FAFC; --surface-3: #EEF2F7;
+  --ink: #1A2733; --ink-2: #35404A;
+  --muted: #5F6B7A; --faint: #8995A4;
+  --border: #E4E8ED; --border-light: #F0F3F7; --border-strong: #C8D0DA;
+  --rail: #FFFFFF; --rail-ink: #5F6B7A; --rail-ink-active: #1A2733;
+  --topbar: #FFFFFF; --topbar-ink: #1A2733;
+  --accent: #E42527; --accent-ink: #FFFFFF;
+  --accent-soft: #FDE7E7; --accent-dark: #C21E20;
+  --link: #1B73E8; --link-2: #1557B5;
+  --teal: #16A497; --teal-soft: #DBF3F0;
+  --blue: #1B73E8; --blue-soft: #DCEAFB;
+  --amber: #F39C12; --amber-soft: #FDF1DC;
+  --red: #E42527; --red-soft: #FDE7E7;
+  --green: #22A06B; --green-soft: #D4F1E2;
+  --violet: #7E57C2; --violet-soft: #EAE0F5;
+  --purple: #AB47BC; --purple-soft: #F3DCF7;
+  --orange: #FF6B35; --orange-soft: #FFE5D9;
+  --rowhover: #F5F7FA;
+  --shadow-sm: 0 1px 2px rgba(26,39,51,.06);
+  --shadow: 0 2px 4px rgba(26,39,51,.08);
+  --shadow-md: 0 4px 12px rgba(26,39,51,.1);
+  --shadow-lg: 0 24px 60px rgba(26,39,51,.18);
+  --backdrop: rgba(26,39,51,.5);
+  --radius: 3px; --radius-md: 5px; --radius-lg: 8px;
+  --font: 'Inter', 'Roboto', system-ui, -apple-system, sans-serif;
+  --mono: 'JetBrains Mono', ui-monospace, monospace;
+}
+
+/* ---------- VARIANT B · Dark Premium ---------- */
+body.variant-b {
+  color-scheme: dark;
+  --bg: #0F1419; --bg-2: #151B22;
+  --surface: #1A2027; --surface-2: #222A33; --surface-3: #2D3640;
+  --ink: #E8EDF2; --ink-2: #C5CDD5;
+  --muted: #8995A4; --faint: #5F6B7A;
+  --border: rgba(255,255,255,.22); --border-light: rgba(255,255,255,.12); --border-strong: rgba(255,255,255,.34);
+  --rail: #12181D; --rail-ink: #8995A4; --rail-ink-active: #FFFFFF;
+  --topbar: #1A2027; --topbar-ink: #E8EDF2;
+  --accent: #FF5A5C; --accent-ink: #0F1419;
+  --accent-soft: rgba(255,90,92,.14); --accent-dark: #E42527;
+  --link: #4EA2FF; --link-2: #7FB9FF;
+  --teal: #2DD4BF; --teal-soft: rgba(45,212,191,.12);
+  --blue: #4EA2FF; --blue-soft: rgba(78,162,255,.12);
+  --amber: #FBBF24; --amber-soft: rgba(251,191,36,.12);
+  --red: #F87171; --red-soft: rgba(248,113,113,.12);
+  --green: #34D399; --green-soft: rgba(52,211,153,.12);
+  --violet: #A78BFA; --violet-soft: rgba(167,139,250,.12);
+  --purple: #C084FC; --purple-soft: rgba(192,132,252,.14);
+  --orange: #FB923C; --orange-soft: rgba(251,146,60,.14);
+  --rowhover: rgba(255,255,255,.03);
+  --shadow-sm: 0 1px 2px rgba(0,0,0,.5);
+  --shadow: 0 2px 6px rgba(0,0,0,.4);
+  --shadow-md: 0 8px 24px rgba(0,0,0,.5);
+  --shadow-lg: 0 24px 60px rgba(0,0,0,.7);
+  --backdrop: rgba(0,0,0,.75);
+  --radius: 4px; --radius-md: 6px; --radius-lg: 10px;
+  --font: 'Inter', 'Roboto', system-ui, sans-serif;
+  --mono: 'JetBrains Mono', ui-monospace, monospace;
+}
+
+/* ---------- VARIANT C · Fresh Blue (Zoho One) ---------- */
+body.variant-c {
+  --bg: #F0F4F8; --bg-2: #E2EAF2;
+  --surface: #FFFFFF; --surface-2: #F5F9FC; --surface-3: #E7EFF7;
+  --ink: #0B2545; --ink-2: #1D3557;
+  --muted: #4A6079; --faint: #7C92A8;
+  --border: #D8E1EA; --border-light: #EAF0F6; --border-strong: #A3B5C9;
+  --rail: #0B2545; --rail-ink: #A3B5C9; --rail-ink-active: #FFFFFF;
+  --topbar: #FFFFFF; --topbar-ink: #0B2545;
+  --accent: #1B73E8; --accent-ink: #FFFFFF;
+  --accent-soft: #DCEAFB; --accent-dark: #1557B5;
+  --link: #1B73E8; --link-2: #0F4FB5;
+  --teal: #00B5AD; --teal-soft: #D4F1EF;
+  --blue: #1B73E8; --blue-soft: #DCEAFB;
+  --amber: #F59E0B; --amber-soft: #FDF1DC;
+  --red: #E42527; --red-soft: #FDE7E7;
+  --green: #22A06B; --green-soft: #D4F1E2;
+  --violet: #7E57C2; --violet-soft: #EAE0F5;
+  --purple: #AB47BC; --purple-soft: #F3DCF7;
+  --orange: #FF6B35; --orange-soft: #FFE5D9;
+  --rowhover: #F0F4F8;
+  --shadow-sm: 0 1px 2px rgba(11,37,69,.06);
+  --shadow: 0 2px 6px rgba(11,37,69,.08);
+  --shadow-md: 0 8px 20px rgba(11,37,69,.12);
+  --shadow-lg: 0 24px 60px rgba(11,37,69,.2);
+  --backdrop: rgba(11,37,69,.5);
+  --radius: 6px; --radius-md: 10px; --radius-lg: 14px;
+  --font: 'Inter', 'Roboto', system-ui, sans-serif;
+  --mono: 'JetBrains Mono', ui-monospace, monospace;
+}
+
+/* ---------- Base reset (applied regardless of variant) ---------- */
+html, body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font);
+  font-size: var(--fs-body);
+  line-height: var(--lh-normal);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transition: background .25s, color .25s;
+}
+a { color: inherit; text-decoration: none; }
+svg { display: block; }
+.mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.tnum { font-variant-numeric: tabular-nums; }

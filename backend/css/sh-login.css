@@ -1,0 +1,470 @@
+/* ============================================================
+   sh-login.css — Smart Hospital login page shared styles
+   3 variants: A = Zoho Light · B = Dark Premium · C = Fresh Blue
+   ============================================================ */
+
+/* ---- Variant A · Light (default) ---- */
+body.variant-a {
+  --bg:           #F5F7FA;
+  --surface:      #FFFFFF;
+  --surface-2:    #F8FAFC;
+  --surface-3:    #EEF2F7;
+  --ink:          #1A2733;
+  --ink-2:        #35404A;
+  --muted:        #5F6B7A;
+  --faint:        #8995A4;
+  --border:       #E4E8ED;
+  --border-strong:#C8D0DA;
+  --accent:       #E42527;
+  --accent-ink:   #FFFFFF;
+  --accent-soft:  #FDE7E7;
+  --accent-dark:  #C21E20;
+  --link:         #1B73E8;
+  --blue-soft:    #DCEAFB;
+  --green:        #22A06B;
+  --green-soft:   #D4F1E2;
+  --teal-soft:    #DBF3F0;
+  --shadow-sm:    0 1px 2px rgba(26,39,51,.06);
+  --shadow:       0 2px 4px rgba(26,39,51,.08);
+  --shadow-md:    0 4px 12px rgba(26,39,51,.10);
+  --shadow-lg:    0 24px 60px rgba(26,39,51,.18);
+  --radius:       3px;
+  --radius-md:    5px;
+  --font:         'Inter','Roboto',system-ui,-apple-system,sans-serif;
+  --mono:         'JetBrains Mono',ui-monospace,monospace;
+}
+
+/* ---- Variant B · Dark Premium ---- */
+body.variant-b {
+  color-scheme: dark;
+  --bg:           #0F1419;
+  --surface:      #1A2027;
+  --surface-2:    #222A33;
+  --surface-3:    #2D3640;
+  --ink:          #E8EDF2;
+  --ink-2:        #C5CDD5;
+  --muted:        #8995A4;
+  --faint:        #5F6B7A;
+  --border:       rgba(255,255,255,.08);
+  --border-strong:rgba(255,255,255,.18);
+  --accent:       #FF5A5C;
+  --accent-ink:   #0F1419;
+  --accent-soft:  rgba(255,90,92,.14);
+  --accent-dark:  #E42527;
+  --link:         #4EA2FF;
+  --blue-soft:    rgba(78,162,255,.12);
+  --green:        #34D399;
+  --green-soft:   rgba(52,211,153,.12);
+  --teal-soft:    rgba(45,212,191,.12);
+  --shadow-sm:    0 1px 2px rgba(0,0,0,.5);
+  --shadow:       0 2px 6px rgba(0,0,0,.4);
+  --shadow-md:    0 8px 24px rgba(0,0,0,.5);
+  --shadow-lg:    0 24px 60px rgba(0,0,0,.7);
+  --radius:       4px;
+  --radius-md:    6px;
+  --font:         'Inter','Roboto',system-ui,sans-serif;
+  --mono:         'JetBrains Mono',ui-monospace,monospace;
+}
+
+/* ---- Variant C · Fresh Blue ---- */
+body.variant-c {
+  --bg:           #F0F4F8;
+  --surface:      #FFFFFF;
+  --surface-2:    #F5F9FC;
+  --surface-3:    #E7EFF7;
+  --ink:          #0B2545;
+  --ink-2:        #1D3557;
+  --muted:        #4A6079;
+  --faint:        #7C92A8;
+  --border:       #D8E1EA;
+  --border-strong:#A3B5C9;
+  --accent:       #1B73E8;
+  --accent-ink:   #FFFFFF;
+  --accent-soft:  #DCEAFB;
+  --accent-dark:  #1557B5;
+  --link:         #1B73E8;
+  --blue-soft:    #DCEAFB;
+  --green:        #22A06B;
+  --green-soft:   #D4F1E2;
+  --teal-soft:    #D4F1EF;
+  --shadow-sm:    0 1px 2px rgba(11,37,69,.06);
+  --shadow:       0 2px 6px rgba(11,37,69,.08);
+  --shadow-md:    0 8px 20px rgba(11,37,69,.12);
+  --shadow-lg:    0 24px 60px rgba(11,37,69,.2);
+  --radius:       6px;
+  --radius-md:    10px;
+  --font:         'Inter','Roboto',system-ui,sans-serif;
+  --mono:         'JetBrains Mono',ui-monospace,monospace;
+}
+
+/* Shared base tokens (fallback when no variant class) */
+:root {
+  --bg:           #F5F7FA;
+  --surface:      #FFFFFF;
+  --surface-2:    #F8FAFC;
+  --surface-3:    #EEF2F7;
+  --ink:          #1A2733;
+  --ink-2:        #35404A;
+  --muted:        #5F6B7A;
+  --faint:        #8995A4;
+  --border:       #E4E8ED;
+  --border-strong:#C8D0DA;
+  --accent:       #E42527;
+  --accent-ink:   #FFFFFF;
+  --accent-soft:  #FDE7E7;
+  --accent-dark:  #C21E20;
+  --link:         #1B73E8;
+  --blue-soft:    #DCEAFB;
+  --green:        #22A06B;
+  --green-soft:   #D4F1E2;
+  --teal-soft:    #DBF3F0;
+  --shadow-sm:    0 1px 2px rgba(26,39,51,.06);
+  --shadow:       0 2px 4px rgba(26,39,51,.08);
+  --shadow-md:    0 4px 12px rgba(26,39,51,.10);
+  --shadow-lg:    0 24px 60px rgba(26,39,51,.18);
+  --radius:       3px;
+  --radius-md:    5px;
+  --font:         'Inter', 'Roboto', system-ui, -apple-system, sans-serif;
+  --mono:         'JetBrains Mono', ui-monospace, monospace;
+}
+
+/* ---- Reset ---- */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font);
+  font-size: var(--fs-body);
+  line-height: var(--lh-normal);
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+a { color: inherit; text-decoration: none; }
+svg { display: block; }
+
+/* ============================================================
+   LAYOUT — full-viewport 50/50 split
+   ============================================================ */
+.lp-wrap {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+/* ============================================================
+   BRAND PANEL (left for admin, right for patient)
+   ============================================================ */
+.lp-brand {
+  background: var(--bg);
+  padding: 48px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  position: relative;
+  overflow: hidden;
+}
+.lp-brand::before {
+  content: "";
+  position: absolute; inset: 0;
+  /* Both radials use --accent-soft so the overlay tint stays preset-aware.
+     Previously the second radial used --blue-soft which is variant-bound
+     (light pastel #DCEAFB for variant-a) — on dark Night Shift / Midnight
+     backgrounds that rendered as an off-brand bright white spotlight. */
+  background:
+    radial-gradient(circle at 20% 20%, var(--accent-soft), transparent 40%),
+    radial-gradient(circle at 80% 80%, var(--accent-soft), transparent 45%);
+  pointer-events: none;
+}
+.lp-brand > * { position: relative; }
+
+/* Patient variant — green overlay */
+.lp-brand.patient::before {
+  background:
+    radial-gradient(circle at 20% 20%, var(--accent-soft), transparent 42%),
+    radial-gradient(circle at 80% 80%, var(--accent-soft), transparent 46%);
+}
+
+/* Logo row */
+.lp-logo-row { display: flex; align-items: center; gap: 10px; }
+.lp-logo-mark {
+  width: 42px; height: 42px; border-radius: 10px;
+  background: var(--accent); color: var(--accent-ink);
+  display: grid; place-items: center;
+  font-weight: 800; font-size: 19px;
+  box-shadow: var(--shadow-md);
+  overflow: hidden; flex-shrink: 0;
+}
+.lp-logo-mark img { width: 100%; height: 100%; object-fit: contain; }
+.lp-brand.patient .lp-logo-mark { background: var(--accent); }
+.lp-logo-name { font-size: 17px; font-weight: 700; color: var(--ink); }
+
+/* Badge pill */
+.lp-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: var(--fs-micro); font-weight: var(--fw-bold);
+  letter-spacing: var(--ls-wide); text-transform: uppercase;
+  padding: 4px 12px; border-radius: 100px;
+  border: 1px solid var(--border);
+  color: var(--muted); background: var(--surface);
+  margin-bottom: 24px;
+  box-shadow: var(--shadow-sm);
+}
+.lp-badge .dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--accent); flex-shrink: 0;
+}
+.lp-brand.patient .lp-badge .dot { background: var(--accent); }
+
+/* Pitch block */
+.lp-pitch { max-width: 720px; }
+.lp-pitch h1 {
+  font-size: 34px; font-weight: var(--fw-heavy);
+  color: var(--ink); letter-spacing: var(--ls-tighter); line-height: var(--lh-tight);
+}
+.lp-pitch h1 span { color: var(--accent); }
+.lp-brand.patient .lp-pitch h1 span { color: var(--accent); }
+.lp-pitch p {
+  margin-top: 14px;
+  font-size: var(--fs-body); color: var(--muted); line-height: var(--lh-loose);
+}
+
+/* Stats row */
+.lp-stats { display: flex; gap: 28px; margin-top: 28px; }
+.lp-stats .n { font-size: 22px; font-weight: 800; color: var(--ink); }
+.lp-brand.patient .lp-stats .n { color: var(--accent); }
+.lp-stats .l { font-size: var(--fs-micro); color: var(--muted); margin-top: 2px; }
+
+/* Feature checklist */
+.lp-features {
+  list-style: none; margin-top: 24px;
+  display: flex; flex-direction: column; gap: 12px;
+}
+.lp-features li {
+  display: flex; align-items: flex-start; gap: 10px;
+  font-size: var(--fs-body); color: var(--muted); line-height: var(--lh-normal);
+}
+.lp-features li .ic {
+  flex-shrink: 0; margin-top: 2px;
+  width: 18px; height: 18px; border-radius: 50%;
+  background: var(--accent-soft);
+  display: flex; align-items: center; justify-content: center;
+}
+.lp-features li .ic svg { width: 10px; height: 10px; color: var(--accent); }
+.lp-brand.patient .lp-features li .ic { background: var(--accent-soft); }
+.lp-brand.patient .lp-features li .ic svg { color: var(--accent); }
+
+/* News / notice panel */
+.lp-news {
+  margin-top: 24px;
+  overflow-y: auto;
+  max-height: 520px;
+  padding-right: 8px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--faint) transparent;
+}
+.lp-news::-webkit-scrollbar { width: 5px; }
+.lp-news::-webkit-scrollbar-track { background: transparent; }
+.lp-news::-webkit-scrollbar-thumb {
+  background: var(--faint);
+  border-radius: 100px;
+  transition: background .2s;
+}
+.lp-news::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+.lp-news::-webkit-scrollbar-button { display: none; }
+.lp-news-label {
+  font-size: 26px; font-weight: 800;
+  letter-spacing: -.015em; color: var(--ink);
+  line-height: 1.2; margin-bottom: 20px;
+  display: block;
+}
+.lp-news-label::after { content: none; }
+.lp-news-item {
+  position: relative;
+  padding: 10px 0 14px 18px;
+  border-left: 2px solid var(--border-strong);
+  transition: border-color .15s;
+}
+.lp-news-item:hover { border-left-color: var(--accent); }
+.lp-news-item::before {
+  content: '';
+  position: absolute; left: -6px; top: 14px;
+  width: 10px; height: 10px; border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 3px var(--bg);
+}
+.lp-news-item:last-child { border-left-color: transparent; }
+.lp-brand.patient .lp-news-item:hover { border-left-color: var(--accent); }
+.lp-brand.patient .lp-news-item::before { background: var(--accent); }
+.lp-news-meta {
+  font-size: var(--fs-micro); font-weight: var(--fw-semibold);
+  color: var(--faint); letter-spacing: var(--ls-wide);
+  text-transform: uppercase; margin-bottom: 4px;
+}
+.lp-news-item h4 {
+  font-size: var(--fs-h4); font-weight: var(--fw-bold); color: var(--ink);
+  line-height: var(--lh-snug);
+}
+.lp-news-item p { font-size: var(--fs-h6); color: var(--muted); line-height: var(--lh-loose); margin-top: 4px; }
+.lp-news-item a { color: var(--link); font-weight: 600; }
+.lp-news-read-more {
+  display: inline-flex; align-items: center; gap: 4px;
+  margin-top: 6px;
+  padding: 3px 10px; border-radius: 100px;
+  font-size: var(--fs-micro); font-weight: var(--fw-semibold);
+  color: var(--link); background: var(--blue-soft);
+  border: 1px solid transparent;
+  transition: background .15s, color .15s, border-color .15s;
+  text-decoration: none;
+}
+.lp-news-read-more svg { width: 9px; height: 9px; }
+.lp-brand.patient .lp-news-read-more { color: var(--accent); background: var(--accent-soft); }
+.lp-news-read-more:hover { background: var(--link); color: #fff; text-decoration: none; }
+.lp-brand.patient .lp-news-read-more:hover { background: var(--accent); color: #fff; }
+
+/* Footer tiny */
+.lp-tiny { font-size: var(--fs-micro); color: var(--muted); }
+
+/* ============================================================
+   FORM PANEL (right for admin, left for patient)
+   ============================================================ */
+.lp-form-panel {
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  padding: 48px;
+  display: flex; align-items: center; justify-content: center;
+}
+
+/* Patient layout: form goes to the LEFT */
+.lp-wrap.patient-layout .lp-form-panel {
+  border-left: none;
+  border-right: 1px solid var(--border);
+  order: -1;
+}
+
+/* ============================================================
+   LOGIN CARD
+   ============================================================ */
+.lp-card { width: 100%; max-width: 380px; }
+.lp-card h2 { font-size: var(--fs-h2); font-weight: var(--fw-bold); letter-spacing: var(--ls-tight); color: var(--ink); }
+.lp-sub { color: var(--muted); font-size: var(--fs-h6); margin-top: 4px; }
+
+.lp-form { margin-top: 24px; display: flex; flex-direction: column; gap: 16px; }
+
+.lp-label {
+  font-size: var(--fs-micro); font-weight: var(--fw-semibold); color: var(--ink-2);
+  text-transform: uppercase; letter-spacing: var(--ls-wide);
+  display: block; margin-bottom: 6px;
+}
+.lp-input {
+  width: 100%; height: 40px; padding: 0 12px;
+  border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--surface);
+  font-size: var(--fs-body); color: var(--ink); font-family: var(--font);
+  transition: border-color .15s, box-shadow .15s;
+}
+.lp-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.lp-field-error { font-size: 11px; color: var(--accent); margin-top: 4px; display: block; }
+
+/* Captcha */
+.lp-captcha-row { display: flex; gap: 10px; align-items: flex-end; }
+.lp-captcha-img {
+  flex: 0 0 130px; height: 40px;
+  border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--surface-2);
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--mono); overflow: hidden;
+}
+.lp-captcha-img img { max-width: 100%; max-height: 38px; }
+.lp-captcha-field { flex: 1; }
+.lp-captcha-refresh {
+  font-size: 11px; color: var(--link); cursor: pointer;
+  display: inline-flex; align-items: center; gap: 4px;
+  margin-top: 6px;
+  background: none; border: none; font-family: var(--font); padding: 0;
+}
+.lp-captcha-refresh:hover { text-decoration: underline; }
+
+/* Forgot link row */
+.lp-meta { display: flex; justify-content: flex-end; }
+.lp-forgot { font-size: 12px; font-weight: 600; color: var(--link); }
+.lp-forgot:hover { text-decoration: underline; }
+
+/* Submit button */
+.lp-btn-submit {
+  width: 100%; height: 42px;
+  background: var(--accent); color: var(--accent-ink);
+  border: none; border-radius: var(--radius);
+  font-size: 13px; font-weight: 600; font-family: var(--font);
+  cursor: pointer; transition: background .15s;
+}
+.lp-btn-submit:hover { background: var(--accent-dark); }
+
+/* Alt / back section */
+.lp-card-alt {
+  margin-top: 20px; padding-top: 20px;
+  border-top: 1px solid var(--border);
+  font-size: 12px; color: var(--muted);
+}
+.lp-back-link {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 12px; font-weight: 600; color: var(--link);
+}
+.lp-back-link:hover { text-decoration: underline; }
+.lp-hint { font-size: 11px; color: var(--faint); margin-top: 4px; }
+
+/* Alert overrides (BS5 .alert already handles most, these tune for our palette) */
+.alert { font-size: 12px; border-radius: var(--radius); padding: 10px 14px; }
+.text-danger { font-size: 11px; }
+
+/* ============================================================
+   VARIANT SWITCHER PILL
+   ============================================================ */
+.lp-vswitch {
+  position: fixed; bottom: 24px; left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  padding: 4px; gap: 2px;
+  box-shadow: var(--shadow-lg);
+  z-index: 200;
+}
+.lp-vswitch button {
+  padding: 8px 16px;
+  font-size: 11px; font-weight: 700;
+  letter-spacing: .03em; text-transform: uppercase;
+  border-radius: 18px;
+  color: var(--muted);
+  background: none; border: none;
+  cursor: pointer;
+  font-family: var(--mono);
+  transition: color .2s, background .2s;
+}
+.lp-vswitch button:hover { color: var(--ink); }
+.lp-vswitch button.active {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+/* ============================================================
+   RESPONSIVE
+   ============================================================ */
+@media (max-width: 768px) {
+  .lp-wrap { grid-template-columns: 1fr; }
+  .lp-brand { display: none; }
+  .lp-form-panel {
+    border-left: none !important;
+    border-right: none !important;
+    order: 0 !important;
+    padding: 32px 20px;
+  }
+  .lp-card { max-width: 100%; }
+  .lp-vswitch { bottom: 12px; }
+}

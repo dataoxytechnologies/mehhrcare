@@ -1,0 +1,30 @@
+.ol_gauth {
+    padding-left: 16px;
+    font-size: 15px;
+}
+
+.delmodal.modalloading .modal-content:before {
+    content: 'Please wait...';
+    text-align: center;
+    line-height: 155px;
+    font-size: 20px;
+    background: rgba(0, 0, 0, .8);
+    position: absolute;
+    top: 55px;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    color: #EEE;
+    z-index: 1000;
+}
+
+form .form-bottom button.btn {
+    min-width: 105px;
+}
+form .form-bottom .input-error {
+    border-color: #d03e3e;
+    color: #d03e3e;
+}
+form.gauthenticate-form fieldset {
+    display: none;
+}

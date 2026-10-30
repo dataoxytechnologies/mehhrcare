@@ -1,0 +1,233 @@
+/* ============================================================
+   SMART HOSPITAL · sh-share.css
+   Styles for the public file-share landing page
+   (application/views/share.php).
+
+   Requires: sh-tokens.css (must be loaded BEFORE this file).
+   Public page — no auth chrome (sidebar/topbar/footer) involved.
+   Mock: Wfdocs/share-samples.html · Variant A (Centered Portal).
+   ============================================================ */
+
+html, body {
+  background: var(--bg);
+  font-family: var(--font, 'Inter', system-ui, -apple-system, sans-serif);
+  color: var(--ink);
+  margin: 0;
+  -webkit-font-smoothing: antialiased;
+}
+
+.share-page {
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding: 56px 16px 48px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+}
+
+.share-card {
+  width: 100%;
+  max-width: 760px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  overflow: hidden;
+}
+
+.share-card__head {
+  padding: 32px 32px 20px;
+  border-bottom: 1px solid var(--border-light);
+  text-align: center;
+}
+
+.share-card__logo {
+  height: 48px;
+  width: auto;
+  max-width: 240px;
+  object-fit: contain;
+  margin: 0 auto 16px;
+  display: block;
+}
+
+.share-card__title {
+  font-size: var(--fs-h1);
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--ls-tight);
+  color: var(--ink);
+  margin: 0;
+  line-height: var(--lh-snug);
+}
+
+.share-card__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 16px 32px;
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border-light);
+  justify-content: center;
+}
+
+.share-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--fs-sm);
+  color: var(--muted);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 5px 12px;
+  white-space: nowrap;
+  line-height: 1.4;
+}
+.share-chip i { color: var(--faint); font-size: 11px; }
+.share-chip b { color: var(--ink); font-weight: var(--fw-semibold); }
+
+.share-card__body {
+  padding: 16px 16px 24px;
+}
+
+.share-file {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 16px;
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+  text-decoration: none;
+  color: var(--ink);
+  transition: background .12s ease, border-color .12s ease;
+}
+.share-file + .share-file { margin-top: 2px; }
+.share-file:hover {
+  background: var(--rowhover);
+  border-color: var(--border-light);
+  color: var(--ink);
+}
+
+.share-file__icon {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 18px;
+  overflow: hidden;
+}
+.share-file__icon img { width: 100%; height: 100%; object-fit: cover; }
+.share-file__icon.is-pdf { background: var(--red-soft); color: var(--red); }
+.share-file__icon.is-doc { background: var(--blue-soft); color: var(--blue); }
+.share-file__icon.is-xls { background: var(--green-soft); color: var(--green); }
+.share-file__icon.is-ppt { background: var(--orange-soft); color: var(--orange); }
+.share-file__icon.is-csv { background: var(--green-soft); color: var(--green); }
+.share-file__icon.is-txt { background: var(--surface-3); color: var(--muted); }
+.share-file__icon.is-img { background: var(--violet-soft); color: var(--violet); }
+.share-file__icon.is-vid { background: var(--amber-soft); color: var(--amber); }
+.share-file__icon.is-zip { background: var(--purple-soft); color: var(--purple); }
+.share-file__icon.is-file { background: var(--surface-3); color: var(--muted); }
+
+.share-file__name {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--fs-body);
+  font-weight: var(--fw-semibold);
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.share-file__type {
+  font-size: var(--fs-micro);
+  font-weight: var(--fw-bold);
+  color: var(--faint);
+  text-transform: uppercase;
+  letter-spacing: var(--ls-wide);
+}
+
+.share-file__download {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  color: var(--muted);
+  flex-shrink: 0;
+  transition: background .12s ease, color .12s ease;
+}
+.share-file:hover .share-file__download {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+.share-empty {
+  padding: 48px 24px;
+  text-align: center;
+  color: var(--muted);
+}
+.share-empty__icon {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: var(--surface-2);
+  color: var(--faint);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26px;
+  margin: 0 auto 16px;
+}
+.share-empty__text {
+  font-size: var(--fs-body);
+  margin: 0;
+}
+
+.share-expired {
+  padding: 64px 32px;
+  text-align: center;
+}
+.share-expired__icon {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: var(--red-soft);
+  color: var(--red);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 34px;
+  margin: 0 auto 20px;
+}
+.share-expired__title {
+  font-size: var(--fs-h2);
+  font-weight: var(--fw-bold);
+  color: var(--ink);
+  margin: 0;
+  line-height: var(--lh-snug);
+}
+
+.share-card__foot {
+  padding: 16px 32px;
+  border-top: 1px solid var(--border-light);
+  background: var(--surface-2);
+  font-size: var(--fs-sm);
+  color: var(--faint);
+  text-align: center;
+}
+
+@media (max-width: 560px) {
+  .share-page { padding: 24px 12px; }
+  .share-card__head { padding: 24px 20px 16px; }
+  .share-card__meta { padding: 12px 16px; }
+  .share-card__body { padding: 12px 8px 20px; }
+  .share-card__foot { padding: 14px 20px; }
+  .share-file { padding: 12px 12px; gap: 12px; }
+  .share-file__icon { width: 40px; height: 40px; font-size: 16px; }
+  .share-file__type { display: none; }
+}

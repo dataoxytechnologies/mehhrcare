@@ -1,0 +1,25 @@
+.DS_Store
+/application/cache/*
+/application/cache/sessions/*
+/application/logs/*
+/application/config/*
+/application/controllers/install/*
+*.log
+node_modules/
+vendor/
+.env
+!application/cache/index.html
+!application/logs/index.html
+uploads/*
+!uploads/index.html
+# Firebase credentials
+/application/third_party/firebase_notification_key.json
+
+# API credentials
+/application/libraries/Langconvert.php
+
+# Database backups
+/backup/database_backup/
+/backup/temp_uploaded/application/third_party/firebase_notification_key.json
+application/libraries/Langconvert.php
+backup/
