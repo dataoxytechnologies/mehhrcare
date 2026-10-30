@@ -8067,6 +8067,7 @@ This Function is used to Import Multiple Patient Records
 
     public function getPatientListAjax()
     {
+        
         $search_term = $this->input->post("searchTerm");
         if (isset($search_term) && $search_term != '') {
             $result = $this->patient_model->getPatientListfilter($search_term);
