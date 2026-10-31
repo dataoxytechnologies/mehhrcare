@@ -1960,7 +1960,11 @@ foreach ($pf_ct_slots as $pf_key => $pf_slot) {
                                             <div class="col-md-3"><label class="form-label form-label-sm">Primary system / area <small class="req"> *</small></label>
                                                 <select class="form-select select2 w-100" id="pf_ct_primary_system" name="pf_ct_primary_system" required>
                                                     <option value="">Select system / area</option>
-                                                    <option value="Internal organs">Internal organs</option>
+                                                    <?php foreach ($broad_area_rules as $ps) {
+                                                        echo '<option value="' . htmlspecialchars((string) $ps->concern_pattern) . '">' . htmlspecialchars((string) $ps->concern_pattern) . '</option>';
+                                                    }
+                                                    ?>
+                                                    <!-- <option value="Internal organs">Internal organs</option>
                                                     <option value="Liver">Liver</option>
                                                     <option value="Kidney">Kidney</option>
                                                     <option value="Urinary">Urinary</option>
@@ -1981,7 +1985,7 @@ foreach ($pf_ct_slots as $pf_key => $pf_slot) {
                                                     <option value="Ovary">Ovary</option>
                                                     <option value="Cervix">Cervix</option>
                                                     <option value="Facial">Facial</option>
-                                                    <option value="Unclear classification">Unclear classification</option>
+                                                    <option value="Unclear classification">Unclear classification</option> -->
                                                 </select></div>
                                             <div class="col-md-3"><label class="form-label form-label-sm">Programme Enrolment</label>
                                                 <select class="form-select select2 w-100" id="pf_ct_programme_id" name="pf_ct_programme_id">

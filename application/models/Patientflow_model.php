@@ -5730,10 +5730,6 @@ class Patientflow_model extends CI_Model
         $programme_id = (int) $programme_id;
         $coverage = strtoupper(trim((string) $coverage));
 
-        if (in_array($coverage, array('ONE_PARTNER', 'BOTH_PARTNERS', 'PER_PATIENT'), true)) {
-            return $coverage;
-        }
-
         $group_code = null;
         if ($programme_id > 0 && $this->db->table_exists('patient_flow_programme')) {
             $programme = $this->db->select('group_id')->where('id', $programme_id)->get('patient_flow_programme')->row();
@@ -5743,6 +5739,14 @@ class Patientflow_model extends CI_Model
                     $group_code = strtoupper(trim((string) $group->code));
                 }
             }
+        }
+
+        if ($group_code === 'FSC_SSC_CHC') {
+            return 'PER_PATIENT';
+        }
+
+        if (in_array($coverage, array('ONE_PARTNER', 'BOTH_PARTNERS', 'PER_PATIENT'), true)) {
+            return $coverage;
         }
 
         $map = array(
@@ -5760,9 +5764,6 @@ class Patientflow_model extends CI_Model
 
         if ($group_code === 'HFT') {
             return 'ONE_PARTNER';
-        }
-        if ($group_code === 'FSC_SSC_CHC') {
-            return 'PER_PATIENT';
         }
 
         return 'ONE_PARTNER';
@@ -5934,6 +5935,12 @@ class Patientflow_model extends CI_Model
         $group = $this->db->where('id', $prog->group_id)->get('patient_flow_programme_group')->row();
         if (!$group) {
             return array('status' => false, 'message' => 'Programme group not found.');
+        }
+
+        $normalized_coverage = $this->normalize_programme_coverage((int) $enr->programme_id, (string) $enr->coverage);
+        if ($normalized_coverage !== (string) $enr->coverage) {
+            $this->db->where('id', $enrollment_id)->update('patient_flow_patient_programme_enrollment', array('coverage' => $normalized_coverage));
+            $enr->coverage = $normalized_coverage;
         }
 
         $this->ensure_default_fee_milestones_for_group((int) $prog->group_id, (string) $enr->coverage);
