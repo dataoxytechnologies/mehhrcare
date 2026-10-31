@@ -29,3 +29,6 @@ uploads/*
 /backup/database_backup/
 /backup/temp_uploaded/
 /backup/
+
+#Index.php
+index.php

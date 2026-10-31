@@ -831,7 +831,7 @@ class Patientflowsetting extends Admin_Controller
                 redirect('admin/patientflowsetting/setting?group=broad_area_rules');
                 return;
             }
-            $concern_pattern = implode(',', $concern_pattern);
+            $concern_pattern = implode(', ', $concern_pattern);
         } else {
             $concern_pattern = trim((string) $concern_pattern);
             if ($concern_pattern === '') {
