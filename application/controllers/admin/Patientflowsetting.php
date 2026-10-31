@@ -347,6 +347,114 @@ class Patientflowsetting extends Admin_Controller
         $res = $this->patientflow_model->delete_patient_fee_schedule($id);
         $this->response_json($res);
     }
+    public function get_consultation_fee()
+    {
+        if (!$this->rbac->hasPrivilege('patient_flow', 'can_view')) {
+            $this->response_json(array('status' => false, 'message' => 'Access denied.'));
+            return;
+        }
+        $id = (int) $this->input->post('id', true);
+        $row = $this->patientflow_model->get_consultation_fee_by_id($id);
+        if (!$row) {
+            $this->response_json(array('status' => false, 'message' => 'Consultation fee not found.'));
+            return;
+        }
+        $this->response_json(array('status' => true, 'data' => $row));
+    }
+
+    public function save_consultation_fee()
+    {
+        if (!$this->rbac->hasPrivilege('patient_flow', 'can_add') && !$this->rbac->hasPrivilege('patient_flow', 'can_edit')) {
+            $this->response_json(array('status' => false, 'message' => 'Access denied.'));
+            return;
+        }
+        $id = (int) $this->input->post('id', true);
+        $data = array(
+            'fee_code' => $this->input->post('fee_code', true),
+            'item_name' => $this->input->post('item_name', true),
+            'category' => $this->input->post('category', true),
+            'base_amount' => $this->input->post('base_amount', true),
+            'basis' => $this->input->post('basis', true),
+            'gst_type' => $this->input->post('gst_type', true),
+            'gst_rate' => $this->input->post('gst_rate', true),
+            'min_duration_minutes' => $this->input->post('min_duration_minutes', true),
+            'extra_time_chargeable' => $this->input->post('extra_time_chargeable', true),
+            'requires_enrolled_patient' => $this->input->post('requires_enrolled_patient', true),
+            'rule_note' => $this->input->post('rule_note', true),
+            'effective_from' => $this->input->post('effective_from', true),
+            'effective_to' => $this->input->post('effective_to', true),
+            'is_active' => $this->input->post('is_active', true),
+        );
+        $res = $this->patientflow_model->save_consultation_fee($id, $data);
+        $this->response_json($res);
+    }
+
+    public function delete_consultation_fee()
+    {
+        if (!$this->rbac->hasPrivilege('patient_flow', 'can_delete')) {
+            $this->response_json(array('status' => false, 'message' => 'Access denied.'));
+            return;
+        }
+        $id = (int) $this->input->post('id', true);
+        $res = $this->patientflow_model->delete_consultation_fee($id);
+        $this->response_json($res);
+    }
+
+    public function get_patient_fee_account()
+    {
+        if (!$this->rbac->hasPrivilege('patient_flow', 'can_view')) {
+            $this->response_json(array('status' => false, 'message' => 'Access denied.'));
+            return;
+        }
+        $id = (int) $this->input->post('id', true);
+        $row = $this->patientflow_model->get_patient_fee_account_by_id($id);
+        if (!$row) {
+            $this->response_json(array('status' => false, 'message' => 'Patient fee account not found.'));
+            return;
+        }
+        $this->response_json(array('status' => true, 'data' => $row));
+    }
+
+    public function save_patient_fee_account()
+    {
+        if (!$this->rbac->hasPrivilege('patient_flow', 'can_add') && !$this->rbac->hasPrivilege('patient_flow', 'can_edit')) {
+            $this->response_json(array('status' => false, 'message' => 'Access denied.'));
+            return;
+        }
+        $id = (int) $this->input->post('id', true);
+        $data = array(
+            'uid' => $this->input->post('uid', true),
+            'patient_id' => $this->input->post('patient_id', true),
+            'partner_patient_id' => $this->input->post('partner_patient_id', true),
+            'programme_code' => $this->input->post('programme_code', true),
+            'coverage' => $this->input->post('coverage', true),
+            'enrolled_on' => $this->input->post('enrolled_on', true),
+            'benefit_discount_id' => $this->input->post('benefit_discount_id', true),
+            'benefit_percent' => $this->input->post('benefit_percent', true),
+            'benefit_valid_quarters' => $this->input->post('benefit_valid_quarters', true),
+            'benefit_status' => $this->input->post('benefit_status', true),
+            'benefit_payment_mode' => $this->input->post('benefit_payment_mode', true),
+            'benefit_requested_by' => $this->input->post('benefit_requested_by', true),
+            'benefit_approved_by' => $this->input->post('benefit_approved_by', true),
+            'benefit_approved_at' => $this->input->post('benefit_approved_at', true),
+            'stagewise_approved_by' => $this->input->post('stagewise_approved_by', true),
+        );
+        $res = $this->patientflow_model->save_patient_fee_account($id, $data);
+        $this->response_json($res);
+    }
+
+    public function delete_patient_fee_account()
+    {
+        if (!$this->rbac->hasPrivilege('patient_flow', 'can_delete')) {
+            $this->response_json(array('status' => false, 'message' => 'Access denied.'));
+            return;
+        }
+        $id = (int) $this->input->post('id', true);
+        $res = $this->patientflow_model->delete_patient_fee_account($id);
+        $this->response_json($res);
+    }
+
+
 
     public function save_constitution()
     {

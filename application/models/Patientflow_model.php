@@ -1739,6 +1739,119 @@ class Patientflow_model extends CI_Model
             return array('status' => false, 'message' => 'Invalid programme status.');
         }
 
+        $this->db->trans_start();
+        $this->db->trans_strict(false);
+
+        $sync_message = '';
+        $enrollment_id = 0;
+
+        if ($status === 'enroll') {
+            if ($this->db->table_exists('patient_flow_patient_programme_enrollment')) {
+                $enrollment_id = 0;
+                $enrollments = $this->get_active_enrollments_by_patient((int) $visit->patient_id);
+                if (!empty($enrollments)) {
+                    foreach ($enrollments as $enrollment) {
+                        if (!empty($visit->ct_programme_id)) {
+                            $candidate_code = trim((string) ($enrollment->programme_code ?? ''));
+                            $visit_code     = trim((string) $visit->ct_programme_id);
+                            if ($candidate_code !== '' && $visit_code !== '' && strtolower($candidate_code) === strtolower($visit_code)) {
+                                $enrollment_id = (int) ($enrollment->id ?? 0);
+                                break;
+                            }
+                        }
+                        if ($enrollment_id <= 0 && !empty($enrollment->id)) {
+                            $enrollment_id = (int) $enrollment->id;
+                        }
+                    }
+                }
+
+                if ($enrollment_id <= 0 && !empty($visit->ct_programme_id)) {
+                    $programme_id = 0;
+                    $programme_code = trim((string) $visit->ct_programme_id);
+
+                    if ($this->db->table_exists('patient_flow_programme')) {
+                        $programme_row = $this->db->where('code', $programme_code)->get('patient_flow_programme')->row();
+                        if ($programme_row) {
+                            $programme_id = (int) $programme_row->id;
+                        } elseif (ctype_digit((string) $programme_code)) {
+                            $programme_id = (int) $programme_code;
+                        }
+                    }
+
+                    if ($programme_id > 0) {
+                        $existing = $this->db->where('patient_id', (int) $visit->patient_id)
+                            ->where('programme_id', $programme_id)
+                            ->order_by('created_at', 'desc')
+                            ->get('patient_flow_patient_programme_enrollment')
+                            ->row();
+
+                        if ($existing) {
+                            $enrollment_id = (int) $existing->id;
+                        } else {
+                            $enrollment_result = $this->save_enrollment(
+                                (int) $visit->patient_id,
+                                $programme_id,
+                                'SELF',
+                                date('Y-m-d'),
+                                (int) $staff_id,
+                                null
+                            );
+                            if (!$enrollment_result['status']) {
+                                $this->db->trans_rollback();
+                                return array('status' => false, 'message' => $enrollment_result['message']);
+                            }
+                            $enrollment_id = (int) ($enrollment_result['id'] ?? 0);
+                        }
+                    }
+                }
+            }
+
+            if ($enrollment_id <= 0) {
+                $this->db->trans_rollback();
+                return array('status' => false, 'message' => 'Programme status set to Enroll, but no active enrollment was found for this patient.');
+            }
+
+            $existing_pending = $this->get_pending_payment_schedule_rows($enrollment_id);
+            if (empty($existing_pending)) {
+                $schedule_result = $this->generate_payment_schedule_for_enrollment($enrollment_id, 1);
+                if (!$schedule_result['status']) {
+                    $this->db->trans_rollback();
+                    return array('status' => false, 'message' => 'Programme status was updated, but the payment schedule could not be generated: ' . $schedule_result['message']);
+                }
+                $sync_message = ' Pending schedule rows were generated automatically.';
+            } else {
+                $sync_message = ' Existing pending schedule rows were kept.';
+            }
+        } elseif ($status === 'declined') {
+            $related_ids = array();
+            if ($this->db->table_exists('patient_flow_patient_programme_enrollment')) {
+                $this->db->reset_query();
+                $this->db->select('e.id');
+                $this->db->from('patient_flow_patient_programme_enrollment e');
+                $this->db->where('e.patient_id', (int) $visit->patient_id);
+                if (!empty($visit->ct_programme_id)) {
+                    $programme_code = trim((string) $visit->ct_programme_id);
+                    if ($this->db->table_exists('patient_flow_programme')) {
+                        $this->db->join('patient_flow_programme pfp', 'pfp.id = e.programme_id', 'left');
+                        $this->db->where('pfp.code', $programme_code);
+                    }
+                }
+                $rows = $this->db->get()->result();
+                foreach ($rows as $row) {
+                    $related_ids[] = (int) $row->id;
+                }
+            }
+
+            if (!empty($related_ids)) {
+                $this->db->where_in('enrollment_id', $related_ids)
+                    ->where('status', 'PENDING')
+                    ->update('patient_flow_programme_payment_schedule', array('status' => 'CANCELLED'));
+                $sync_message = ' Pending schedule rows were cancelled.';
+            } else {
+                $sync_message = ' No pending schedule rows were found to cancel.';
+            }
+        }
+
         $this->db->where('id', $visit_id);
         $this->db->update('patient_flow_visits', array(
             'programme_status' => $status,
@@ -1754,7 +1867,13 @@ class Patientflow_model extends CI_Model
             'acted_role_id' => $role_id,
         ));
 
-        return array('status' => true, 'message' => 'Programme status updated to ' . ucfirst($status) . '.');
+        $this->db->trans_complete();
+        if ($this->db->trans_status() === false) {
+            $this->db->trans_rollback();
+            return array('status' => false, 'message' => 'Database error while updating programme status.');
+        }
+
+        return array('status' => true, 'message' => 'Programme status updated to ' . ucfirst($status) . '.' . $sync_message);
     }
 
     /**
@@ -3900,6 +4019,56 @@ class Patientflow_model extends CI_Model
     }
 
     /**
+     * Get active, approved discount campaigns scoped to a programme/group and current date.
+     */
+    public function get_active_discount_campaigns($programme_id = null, $group_id = null, $as_of = null)
+    {
+        if (!$this->db->table_exists('patient_flow_discount_campaign')) {
+            return [];
+        }
+
+        $as_of = $as_of ? (string) $as_of : date('Y-m-d');
+        $programme_id = (int) $programme_id;
+        $group_id = (int) $group_id;
+
+        $this->db->select('dc.*')
+            ->from('patient_flow_discount_campaign dc')
+            ->where('dc.status', 'APPROVED')
+            ->where('dc.start_date <=', $as_of)
+            ->where('dc.end_date >=', $as_of)
+            ->order_by('dc.discount_percent', 'DESC')
+            ->order_by('dc.id', 'DESC');
+
+        $campaigns = $this->db->get()->result();
+        $valid = array();
+
+        foreach ($campaigns as $campaign) {
+            $scope_rows = $this->db->where('campaign_id', (int) $campaign->id)
+                ->get('patient_flow_discount_campaign_scope')
+                ->result();
+
+            if (!empty($scope_rows)) {
+                $matches = false;
+                foreach ($scope_rows as $scope) {
+                    $scope_group = ($scope->group_id === null || (int) $scope->group_id === $group_id);
+                    $scope_programme = ($scope->programme_id === null || (int) $scope->programme_id === $programme_id);
+                    if ($scope_group && $scope_programme) {
+                        $matches = true;
+                        break;
+                    }
+                }
+                if (!$matches) {
+                    continue;
+                }
+            }
+
+            $valid[] = $campaign;
+        }
+
+        return $valid;
+    }
+
+    /**
      * Get all assistance categories.
      */
     public function get_assistance_categories()
@@ -5554,6 +5723,52 @@ class Patientflow_model extends CI_Model
     // ============ Step 5: Enrollment & Schedule Generation ============
 
     /**
+     * Normalize user-facing coverage labels to the enum values used by the fee engine.
+     */
+    public function normalize_programme_coverage($programme_id, $coverage)
+    {
+        $programme_id = (int) $programme_id;
+        $coverage = strtoupper(trim((string) $coverage));
+
+        if (in_array($coverage, array('ONE_PARTNER', 'BOTH_PARTNERS', 'PER_PATIENT'), true)) {
+            return $coverage;
+        }
+
+        $group_code = null;
+        if ($programme_id > 0 && $this->db->table_exists('patient_flow_programme')) {
+            $programme = $this->db->select('group_id')->where('id', $programme_id)->get('patient_flow_programme')->row();
+            if ($programme && $this->db->table_exists('patient_flow_programme_group')) {
+                $group = $this->db->select('code')->where('id', (int) $programme->group_id)->get('patient_flow_programme_group')->row();
+                if ($group) {
+                    $group_code = strtoupper(trim((string) $group->code));
+                }
+            }
+        }
+
+        $map = array(
+            'SELF' => 'ONE_PARTNER',
+            'PARTNER' => 'ONE_PARTNER',
+            'BOTH' => 'BOTH_PARTNERS',
+            'ONE_PARTNER' => 'ONE_PARTNER',
+            'BOTH_PARTNERS' => 'BOTH_PARTNERS',
+            'PER_PATIENT' => 'PER_PATIENT',
+        );
+
+        if (isset($map[$coverage])) {
+            return $map[$coverage];
+        }
+
+        if ($group_code === 'HFT') {
+            return 'ONE_PARTNER';
+        }
+        if ($group_code === 'FSC_SSC_CHC') {
+            return 'PER_PATIENT';
+        }
+
+        return 'ONE_PARTNER';
+    }
+
+    /**
      * Create a patient programme enrollment.
      */
     public function save_enrollment($patient_id, $programme_id, $coverage, $enrolled_on, $staff_id, $partner_patient_id = null)
@@ -5565,7 +5780,7 @@ class Patientflow_model extends CI_Model
         $programme_id  = (int) $programme_id;
         $staff_id      = (int) $staff_id;
         $partner_id    = $partner_patient_id ? (int) $partner_patient_id : null;
-        $coverage      = trim((string) $coverage);
+        $coverage      = $this->normalize_programme_coverage($programme_id, $coverage);
         $enrolled_on   = trim((string) $enrolled_on);
         if ($patient_id <= 0 || $programme_id <= 0 || $coverage === '' || $enrolled_on === '') {
             return array('status' => false, 'message' => 'Invalid enrollment parameters.');
@@ -5638,6 +5853,65 @@ class Patientflow_model extends CI_Model
     }
 
     /**
+     * Ensure that the standard programme milestones exist for a group/coverage.
+     * This avoids a silent no-op when the fee milestone table has not been seeded.
+     */
+    public function ensure_default_fee_milestones_for_group($group_id, $coverage)
+    {
+        $group_id = (int) $group_id;
+        $coverage = trim((string) $coverage);
+
+        if ($group_id <= 0 || $coverage === '' || !$this->db->table_exists('patient_flow_programme_fee_milestone')) {
+            return false;
+        }
+
+        $group = $this->db->where('id', $group_id)->get('patient_flow_programme_group')->row();
+        if (!$group) {
+            return false;
+        }
+
+        $group_code = trim((string) ($group->code ?? ''));
+        $defaults = array();
+        if ($group_code === 'HFT') {
+            $defaults = array(
+                'ONE_PARTNER' => array('Q1_INITIAL' => 6000, 'Q1_REMAINING' => 10000, 'LATER_QUARTER' => 10000, 'REVIEW_QUARTER' => 14000),
+                'BOTH_PARTNERS' => array('Q1_INITIAL' => 10000, 'Q1_REMAINING' => 15000, 'LATER_QUARTER' => 16000, 'REVIEW_QUARTER' => 21000),
+            );
+        } elseif ($group_code === 'FSC_SSC_CHC') {
+            $defaults = array(
+                'PER_PATIENT' => array('Q1_INITIAL' => 5000, 'Q1_REMAINING' => 10000, 'LATER_QUARTER' => 8000, 'REVIEW_QUARTER' => 12000),
+            );
+        }
+
+        if (!isset($defaults[$coverage])) {
+            return false;
+        }
+
+        foreach ($defaults[$coverage] as $milestone_code => $amount) {
+            $exists = $this->db->where('group_id', $group_id)
+                ->where('coverage', $coverage)
+                ->where('milestone_code', $milestone_code)
+                ->where('is_active', 1)
+                ->count_all_results('patient_flow_programme_fee_milestone');
+
+            if ($exists === 0) {
+                $this->db->insert('patient_flow_programme_fee_milestone', array(
+                    'group_id' => $group_id,
+                    'coverage' => $coverage,
+                    'milestone_code' => $milestone_code,
+                    'duration_days' => 15,
+                    'amount' => (float) $amount,
+                    'effective_from' => date('Y-m-d'),
+                    'effective_to' => null,
+                    'is_active' => 1,
+                ));
+            }
+        }
+
+        return true;
+    }
+
+    /**
      * Generate payment schedule rows for an enrollment using Fee_engine.
      */
     public function generate_payment_schedule_for_enrollment($enrollment_id, $quarter_no = 1)
@@ -5661,6 +5935,9 @@ class Patientflow_model extends CI_Model
         if (!$group) {
             return array('status' => false, 'message' => 'Programme group not found.');
         }
+
+        $this->ensure_default_fee_milestones_for_group((int) $prog->group_id, (string) $enr->coverage);
+
         // Get current benefit
         $benefit = $this->db->where('enrollment_id', $enrollment_id)->where('is_current', 1)
             ->get('patient_flow_enrollment_benefit')->row();
@@ -5669,13 +5946,16 @@ class Patientflow_model extends CI_Model
             ->where('coverage', $enr->coverage)
             ->where('is_active', 1)
             ->get('patient_flow_programme_fee_milestone')->result();
-        // Get Q1 stages if needed
+        // Get Q1 stages with the actual stage allocation figures for this group/coverage.
         $stages = array();
         if ($quarter_no === 1) {
-            $this->db->from('stage_master');
-            $this->db->where('quarter', 'Q1');
-            $this->db->where('is_active', 1);
-            $this->db->order_by('stage', 'asc');
+            $coverage_sql = $this->db->escape($enr->coverage);
+            $this->db->select('sm.id, sm.code, sm.quarter, sm.stage, sm.duration_days, sm.sort_order, sa.standard_amount');
+            $this->db->from('stage_master sm');
+            $this->db->join('patient_flow_programme_fee_stage_allocation sa', 'sa.stage_id = sm.id AND sa.group_id = ' . (int) $prog->group_id . ' AND sa.coverage = ' . $coverage_sql, 'left');
+            $this->db->where('sm.quarter', 'Q1');
+            $this->db->where('sm.is_active', 1);
+            $this->db->order_by('sm.sort_order', 'asc');
             $stages = $this->db->get()->result();
         }
         // Determine quarter fee amount
@@ -5704,9 +5984,17 @@ class Patientflow_model extends CI_Model
             'valid_from_quarter' => $benefit ? (int) $benefit->valid_from_quarter : $quarter_no,
             'valid_to_quarter'   => $benefit ? (int) $benefit->valid_to_quarter : $quarter_no,
         );
-        // Load Fee_engine library
-        $this->CI->load->library('fee_engine');
-        $rows = $this->CI->fee_engine->generate_schedule($enrollment_id, $quarter_no, $benefit_arr, $milestones, $stages, $quarter_fee);
+        // Load Fee_engine library from the active CodeIgniter instance.
+        $this->load->library('fee_engine');
+        $rows = $this->fee_engine->generate_schedule($enrollment_id, $quarter_no, $benefit_arr, $milestones, $stages, $quarter_fee);
+
+        if (empty($rows)) {
+            return array(
+                'status'  => false,
+                'message' => 'No payment schedule rows were generated for programme group ' . ($group->code ?? $prog->group_id) . ' and coverage ' . $enr->coverage . '. Please verify programme fee milestone settings.'
+            );
+        }
+
         // Insert schedule rows
         $inserted = 0;
         foreach ($rows as $row) {
@@ -5807,6 +6095,99 @@ class Patientflow_model extends CI_Model
         }
         return $this->db->get('patient_flow_patient_fee_account')->result();
     }
+    public function get_patient_fee_account_by_id($id)
+    {
+        if (!$this->db->table_exists('patient_flow_patient_fee_account')) {
+            return null;
+        }
+        return $this->db->where('id', (int) $id)->get('patient_flow_patient_fee_account')->row();
+    }
+
+    public function save_patient_fee_account($id, $data)
+    {
+        if (!$this->db->table_exists('patient_flow_patient_fee_account')) {
+            return array('status' => false, 'message' => 'Patient fee account table not found.');
+        }
+        $id = (int) $id;
+        $uid = trim((string) ($data['uid'] ?? ''));
+        $patient_id = (int) ($data['patient_id'] ?? 0);
+        $partner_patient_id = trim((string) ($data['partner_patient_id'] ?? ''));
+        $partner_patient_id = $partner_patient_id === '' ? null : $partner_patient_id;
+        $programme_code = trim((string) ($data['programme_code'] ?? ''));
+        $coverage = strtoupper(trim((string) ($data['coverage'] ?? 'SELF')));
+        if (!in_array($coverage, array('SELF', 'PARTNER', 'BOTH'), true)) {
+            $coverage = 'SELF';
+        }
+        $enrolled_on = trim((string) ($data['enrolled_on'] ?? ''));
+        if ($enrolled_on === '') {
+            $enrolled_on = date('Y-m-d');
+        }
+        $benefit_discount_id = (int) ($data['benefit_discount_id'] ?? 0);
+        $benefit_discount_id = $benefit_discount_id > 0 ? $benefit_discount_id : null;
+        $benefit_percent = (float) ($data['benefit_percent'] ?? 0);
+        $benefit_valid_quarters = (int) ($data['benefit_valid_quarters'] ?? 0);
+        $benefit_valid_quarters = $benefit_valid_quarters > 0 ? $benefit_valid_quarters : null;
+        $benefit_status = strtoupper(trim((string) ($data['benefit_status'] ?? 'REQUESTED')));
+        if (!in_array($benefit_status, array('REQUESTED', 'APPROVED', 'REJECTED'), true)) {
+            $benefit_status = 'REQUESTED';
+        }
+        $benefit_payment_mode = strtoupper(trim((string) ($data['benefit_payment_mode'] ?? 'NONE')));
+        if (!in_array($benefit_payment_mode, array('NONE', 'FULL', 'PARTIAL'), true)) {
+            $benefit_payment_mode = 'NONE';
+        }
+        $benefit_requested_by = (int) ($data['benefit_requested_by'] ?? 0);
+        $benefit_requested_by = $benefit_requested_by > 0 ? $benefit_requested_by : null;
+        $benefit_approved_by = (int) ($data['benefit_approved_by'] ?? 0);
+        $benefit_approved_by = $benefit_approved_by > 0 ? $benefit_approved_by : null;
+        $benefit_approved_at = trim((string) ($data['benefit_approved_at'] ?? ''));
+        $benefit_approved_at = $benefit_approved_at === '' ? null : $benefit_approved_at;
+        $stagewise_approved_by = (int) ($data['stagewise_approved_by'] ?? 0);
+        $stagewise_approved_by = $stagewise_approved_by > 0 ? $stagewise_approved_by : null;
+
+        if ($uid === '' || $patient_id <= 0 || $programme_code === '') {
+            return array('status' => false, 'message' => 'UID, patient and programme code are required.');
+        }
+
+        $row = array(
+            'uid' => $uid,
+            'patient_id' => $patient_id,
+            'partner_patient_id' => $partner_patient_id,
+            'programme_code' => $programme_code,
+            'coverage' => $coverage,
+            'enrolled_on' => $enrolled_on,
+            'benefit_discount_id' => $benefit_discount_id,
+            'benefit_percent' => $benefit_percent,
+            'benefit_valid_quarters' => $benefit_valid_quarters,
+            'benefit_status' => $benefit_status,
+            'benefit_payment_mode' => $benefit_payment_mode,
+            'benefit_requested_by' => $benefit_requested_by,
+            'benefit_approved_by' => $benefit_approved_by,
+            'benefit_approved_at' => $benefit_approved_at,
+            'stagewise_approved_by' => $stagewise_approved_by,
+        );
+
+        if ($id > 0) {
+            $this->db->where('id', $id)->update('patient_flow_patient_fee_account', $row);
+            return array('status' => true, 'message' => 'Patient fee account updated.', 'id' => $id);
+        }
+        $this->db->insert('patient_flow_patient_fee_account', $row);
+        return array('status' => true, 'message' => 'Patient fee account added.', 'id' => $this->db->insert_id());
+    }
+
+    public function delete_patient_fee_account($id)
+    {
+        if (!$this->db->table_exists('patient_flow_patient_fee_account')) {
+            return array('status' => false, 'message' => 'Patient fee account table not found.');
+        }
+        $id = (int) $id;
+        if ($id <= 0) {
+            return array('status' => false, 'message' => 'Invalid id.');
+        }
+        $this->db->where('id', $id)->delete('patient_flow_patient_fee_account');
+        return array('status' => true, 'message' => 'Patient fee account deleted.');
+    }
+
+
 
     /**
      * Get all patient fee schedules.
@@ -5906,12 +6287,97 @@ class Patientflow_model extends CI_Model
      */
     public function get_consultation_fees()
     {
-        if (!$this->db->table_exists('patient_flow_fee_master')) {
+        if (!$this->db->table_exists('patient_flow_fee_item_master')) {
             return [];
         }
-        $this->db->where('fee_type', 'ITEM');
-        return $this->db->get('patient_flow_fee_master')->result();
+        return $this->db->get('patient_flow_fee_item_master')->result();
     }
+    public function get_consultation_fee_by_id($id)
+    {
+        if (!$this->db->table_exists('patient_flow_fee_item_master')) {
+            return null;
+        }
+        return $this->db->where('id', (int) $id)->get('patient_flow_fee_item_master')->row();
+    }
+
+    public function save_consultation_fee($id, $data)
+    {
+        if (!$this->db->table_exists('patient_flow_fee_item_master')) {
+            return array('status' => false, 'message' => 'Consultation fee table not found.');
+        }
+        $id = (int) $id;
+        $fee_code = strtoupper(trim((string) ($data['fee_code'] ?? '')));
+        $item_name = trim((string) ($data['item_name'] ?? ''));
+        $category = strtoupper(trim((string) ($data['category'] ?? 'ITEM')));
+        if (!in_array($category, array('CONSULTATION', 'VIAL', 'ITEM'), true)) {
+            $category = 'ITEM';
+        }
+        $base_amount = (float) ($data['base_amount'] ?? 0);
+        $basis = strtoupper(trim((string) ($data['basis'] ?? 'PER_PATIENT')));
+        if (!in_array($basis, array('PER_PATIENT', 'PER_CONSULTATION', 'PER_VIAL', 'PER_DUPLICATE'), true)) {
+            $basis = 'PER_PATIENT';
+        }
+        $gst_type = strtoupper(trim((string) ($data['gst_type'] ?? 'EXEMPT')));
+        if (!in_array($gst_type, array('EXEMPT', 'EXCLUSIVE', 'INCLUSIVE', 'CONFIGURED'), true)) {
+            $gst_type = 'EXEMPT';
+        }
+        $gst_rate = (float) ($data['gst_rate'] ?? 0);
+        $min_duration_minutes = (int) ($data['min_duration_minutes'] ?? 0);
+        $min_duration_minutes = $min_duration_minutes > 0 ? $min_duration_minutes : null;
+        $extra_time_chargeable = isset($data['extra_time_chargeable']) && (string) $data['extra_time_chargeable'] === '1' ? 1 : 0;
+        $requires_enrolled_patient = isset($data['requires_enrolled_patient']) && (string) $data['requires_enrolled_patient'] === '1' ? 1 : 0;
+        $rule_note = trim((string) ($data['rule_note'] ?? ''));
+        $effective_from = trim((string) ($data['effective_from'] ?? ''));
+        if ($effective_from === '') {
+            $effective_from = date('Y-m-d');
+        }
+        $effective_to = trim((string) ($data['effective_to'] ?? ''));
+        $effective_to = $effective_to === '' ? null : $effective_to;
+        $is_active = isset($data['is_active']) ? ((string) $data['is_active'] === '1' ? 1 : 0) : 1;
+
+        if ($fee_code === '' || $item_name === '') {
+            return array('status' => false, 'message' => 'Fee code and item name are required.');
+        }
+
+        $row = array(
+            'fee_code' => $fee_code,
+            'item_name' => $item_name,
+            'category' => $category,
+            'base_amount' => $base_amount,
+            'basis' => $basis,
+            'gst_type' => $gst_type,
+            'gst_rate' => $gst_rate,
+            'min_duration_minutes' => $min_duration_minutes,
+            'extra_time_chargeable' => $extra_time_chargeable,
+            'requires_enrolled_patient' => $requires_enrolled_patient,
+            'rule_note' => $rule_note === '' ? null : $rule_note,
+            'effective_from' => $effective_from,
+            'effective_to' => $effective_to,
+            'is_active' => $is_active,
+        );
+
+        if ($id > 0) {
+            $this->db->where('id', $id)->update('patient_flow_fee_item_master', $row);
+            return array('status' => true, 'message' => 'Consultation fee updated.', 'id' => $id);
+        }
+        $this->db->insert('patient_flow_fee_item_master', $row);
+        return array('status' => true, 'message' => 'Consultation fee added.', 'id' => $this->db->insert_id());
+    }
+
+    public function delete_consultation_fee($id)
+    {
+        if (!$this->db->table_exists('patient_flow_fee_item_master')) {
+            return array('status' => false, 'message' => 'Consultation fee table not found.');
+        }
+        $id = (int) $id;
+        if ($id <= 0) {
+            return array('status' => false, 'message' => 'Invalid id.');
+        }
+        $this->db->where('id', $id)->delete('patient_flow_fee_item_master');
+        return array('status' => true, 'message' => 'Consultation fee deleted.');
+    }
+
+
 
     /**
      * Save (insert or update) a fee master item.
@@ -6315,4 +6781,105 @@ class Patientflow_model extends CI_Model
     /* ========================================================================
        END REPORTS MODEL METHODS
        ======================================================================== */
+    public function get_active_enrollments_by_patient($patient_id)
+    {
+        $patient_id = (int) $patient_id;
+        $rows = array();
+
+        if ($this->db->table_exists('patient_flow_patient_programme_enrollment')) {
+            $this->db->select('e.*, p.patient_name, p.patient_uuid, pm.code AS programme_code, pm.name AS programme_name');
+            $this->db->from('patient_flow_patient_programme_enrollment e');
+            $this->db->join('patients p', 'p.id = e.patient_id', 'left');
+            $this->db->join('patient_flow_programme pm', 'pm.id = e.programme_id', 'left');
+            $this->db->where('e.patient_id', $patient_id);
+            $this->db->group_start();
+            $this->db->where('e.status', 'ACTIVE');
+            $this->db->or_where('LOWER(e.status)', 'active');
+            $this->db->or_where('LOWER(e.status)', 'enroll');
+            $this->db->or_where('LOWER(e.status)', 'enrolled');
+            $this->db->group_end();
+            $this->db->order_by('e.created_at', 'desc');
+            $rows = $this->db->get()->result();
+        }
+
+        if (!empty($rows)) {
+            return $rows;
+        }
+
+        if (!$this->db->field_exists('programme_status', 'patient_flow_visits') || !$this->db->field_exists('ct_programme_id', 'patient_flow_visits')) {
+            return array();
+        }
+
+        $this->db->select('v.id AS visit_id, v.patient_id, v.ct_programme_id AS programme_code, v.programme_status, p.patient_name, p.patient_uuid');
+        $this->db->from('patient_flow_visits v');
+        $this->db->join('patients p', 'p.id = v.patient_id', 'left');
+        $this->db->where('v.patient_id', $patient_id);
+        $this->db->where('v.ct_programme_id IS NOT NULL', null, false);
+        $this->db->where('TRIM(v.ct_programme_id) !=', '');
+        $this->db->group_start();
+        $this->db->where('LOWER(v.programme_status)', 'enroll');
+        $this->db->or_where('LOWER(v.programme_status)', 'enrolled');
+        $this->db->or_where('LOWER(v.programme_status)', 'active');
+        $this->db->group_end();
+        $this->db->order_by('v.id', 'desc');
+        $visit_rows = $this->db->get()->result();
+
+        foreach ($visit_rows as $visit_row) {
+            $programme_code = trim((string) ($visit_row->programme_code ?? ''));
+            $programme_name = $programme_code;
+            if ($this->db->table_exists('patient_flow_programme')) {
+                $programme_row = $this->db->where('code', $programme_code)->get('patient_flow_programme')->row();
+                if ($programme_row) {
+                    $programme_name = trim((string) ($programme_row->name ?: $programme_row->code ?: $programme_code));
+                }
+            }
+
+            $rows[] = (object) array(
+                'id' => 0,
+                'patient_id' => (int) $patient_id,
+                'programme_id' => 0,
+                'programme_code' => $programme_code,
+                'programme_name' => $programme_name,
+                'coverage' => '',
+                'uid' => '',
+                'status' => 'ACTIVE',
+                'visit_id' => (int) ($visit_row->visit_id ?? 0),
+                'visit_status' => (string) ($visit_row->programme_status ?? 'enroll'),
+                'patient_name' => (string) ($visit_row->patient_name ?? ''),
+                'patient_uuid' => (string) ($visit_row->patient_uuid ?? ''),
+            );
+        }
+
+        return $rows;
+    }
+    public function get_pending_payment_schedule_rows($enrollment_id, $stage_id = null)
+    {
+        if (!$this->db->table_exists('patient_flow_programme_payment_schedule')) {
+            return array();
+        }
+        $this->db->select('ps.*, e.uid AS enrollment_uid');
+        $this->db->from('patient_flow_programme_payment_schedule ps');
+        $this->db->join('patient_flow_patient_programme_enrollment e', 'e.id = ps.enrollment_id', 'left');
+        $this->db->join('patients p', 'p.id = e.patient_id', 'left');
+        $this->db->join('patient_flow_programme pm', 'pm.id = e.programme_id', 'left');
+        $this->db->where('ps.enrollment_id', (int) $enrollment_id);
+        $this->db->where('ps.status', 'PENDING');
+        if ($stage_id) {
+            $this->db->where('ps.stage_from_id <=', (int) $stage_id);
+            $this->db->where('ps.stage_to_id >=', (int) $stage_id);
+        }
+        $this->db->order_by('ps.quarter_no', 'asc');
+        $this->db->order_by('ps.seq_no', 'asc');
+        return $this->db->get()->result();
+    }
+    public function get_pending_rows_by_enrollment_stage($enrollment_id, $stage_id = null)
+    {
+        return $this->get_pending_payment_schedule_rows($enrollment_id, $stage_id);
+    }
+
+    public function get_pending_schedule_rows($enrollment_id, $stage_id = null)
+    {
+        return $this->get_pending_payment_schedule_rows($enrollment_id, $stage_id);
+    }
+
 }

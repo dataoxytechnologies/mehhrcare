@@ -44,7 +44,7 @@
                 </div>
                 <div class="modal-body">
                     <input type="hidden" name="id" id="fee_id" value="0">
-                    <div class="form-row">
+                    <div class="row form-row">
                         <div class="form-group col-md-4">
                             <label class="form-label">Fee Type <span class="text-danger">*</span></label>
                             <select name="fee_type" id="fee_type" class="form-control" required>
@@ -62,7 +62,7 @@
                             <input type="text" name="group_code" id="fee_group_code" class="form-control" placeholder="e.g. HFT">
                         </div>
                     </div>
-                    <div class="form-row">
+                    <div class="row form-row">
                         <div class="form-group col-md-4">
                             <label class="form-label">Name <span class="text-danger">*</span></label>
                             <input type="text" name="name" id="fee_name" class="form-control" required>
@@ -81,7 +81,7 @@
                             <input type="number" name="amount" id="fee_amount" class="form-control" step="0.01" min="0">
                         </div>
                     </div>
-                    <div class="form-row">
+                    <div class="row form-row">
                         <div class="form-group col-md-4">
                             <label class="form-label">GST Type</label>
                             <select name="gst_type" id="fee_gst_type" class="form-control">

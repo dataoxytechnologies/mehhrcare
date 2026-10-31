@@ -28,8 +28,26 @@
                     <td><?php echo $d->discount_percent ? number_format($d->discount_percent, 2) . '%' : '-'; ?></td>
                     <td><?php echo $d->start_date ? $d->start_date : '-'; ?></td>
                     <td><?php echo $d->end_date ? $d->end_date : '-'; ?></td>
-                    <td><?php echo htmlspecialchars($d->status ?? '-'); ?></td>
+                    <td>
+                        <?php
+                        $status = strtoupper((string) ($d->status ?? ''));
+                        if ($status === 'APPROVED') {
+                            echo '<span class="badge bg-success">Approved</span>';
+                        } elseif ($status === 'DRAFT') {
+                            echo '<span class="badge bg-warning text-dark">Draft</span>';
+                        } elseif ($status === 'REJECTED') {
+                            echo '<span class="badge bg-danger">Rejected</span>';
+                        } else {
+                            echo '<span class="badge bg-secondary">' . htmlspecialchars($status ?: 'Unknown') . '</span>';
+                        }
+                        ?>
+                    </td>
                     <td class="text-end text-nowrap">
+                        <?php if (($d->status ?? '') === 'DRAFT'): ?>
+                            <button type="button" class="btn btn-sm btn-success" onclick="activateCampaign(<?php echo (int) ($d->id ?? 0); ?>)"><i class="fa fa-check"></i> Activate</button>
+                        <?php else: ?>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" disabled><i class="fa fa-check"></i> Active</button>
+                        <?php endif; ?>
                         <button type="button" class="btn btn-sm btn-outline-primary" onclick="openCampaignModal(<?php echo ($d->id ?? 0); ?>)"><i class="fa fa-pencil"></i></button>
                         <button type="button" class="btn btn-sm btn-outline-danger" onclick="deleteCampaign(<?php echo ($d->id ?? 0); ?>)"><i class="fa fa-trash"></i></button>
                     </td>
@@ -54,7 +72,7 @@
                 </div>
                 <div class="modal-body">
                     <input type="hidden" name="id" id="campaign_id" value="0">
-                    <div class="form-row">
+                    <div class="row form-row">
                         <div class="form-group col-md-4">
                             <label class="form-label">Campaign Code <span class="text-danger">*</span></label>
                             <input type="text" class="form-control" name="campaign_code" id="campaign_code" required>
@@ -64,7 +82,7 @@
                             <input type="text" class="form-control" name="reason" id="campaign_reason" required>
                         </div>
                     </div>
-                    <div class="form-row">
+                    <div class="row form-row">
                         <div class="form-group col-md-4">
                             <label class="form-label">Discount % <span class="text-danger">*</span></label>
                             <input type="number" step="0.01" class="form-control" name="discount_percent" id="campaign_discount_percent" required>
@@ -78,7 +96,7 @@
                             <input type="date" class="form-control" name="end_date" id="campaign_end_date" required>
                         </div>
                     </div>
-                    <div class="form-row">
+                    <div class="row form-row">
                         <div class="form-group col-md-4">
                             <label class="form-label">Benefit Quarters</label>
                             <input type="number" class="form-control" name="benefit_quarters" id="campaign_benefit_quarters" value="2">
@@ -162,7 +180,7 @@
                 </div>
                 <div class="modal-body">
                     <input type="hidden" name="id" id="category_id" value="0">
-                    <div class="form-row">
+                    <div class="row form-row">
                         <div class="form-group col-md-4">
                             <label class="form-label">Group ID <span class="text-danger">*</span></label>
                             <input type="number" class="form-control" name="group_id" id="category_group_id" required>
@@ -176,7 +194,7 @@
                             <input type="number" step="0.01" class="form-control" name="discount_percent" id="category_discount_percent" required>
                         </div>
                     </div>
-                    <div class="form-row">
+                    <div class="row form-row">
                         <div class="form-group col-md-4">
                             <label class="form-label">Validity Quarters</label>
                             <input type="number" class="form-control" name="validity_quarters" id="category_validity_quarters" value="2">
@@ -248,6 +266,14 @@ $('#campaignForm').on('submit', function(e) {
         else { alert(res.message); }
     }, 'json');
 });
+function activateCampaign(id) {
+    if (!confirm('Activate this campaign so it becomes available in the programme billing popup?')) return;
+    $.post('<?php echo site_url('admin/patientflowsetting/approve_campaign'); ?>/' + id, {approve: 1}, function(res) {
+        if (res.status) { location.reload(); }
+        else { alert(res.message); }
+    }, 'json');
+}
+
 function deleteCampaign(id) {
     if (!confirm('Are you sure you want to delete this campaign?')) return;
     $.post('<?php echo site_url('admin/patientflowsetting/delete_discount_campaign'); ?>', {id: id}, function(res) {
