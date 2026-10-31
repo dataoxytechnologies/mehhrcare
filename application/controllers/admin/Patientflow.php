@@ -1366,6 +1366,126 @@ class Patientflow extends Admin_Controller
     }
 
     /**
+     * Printable invoice for a generated programme bill.
+     */
+    public function print_programme_bill($visit_id = 0)
+    {
+        if (!$this->rbac->hasPrivilege('patient_flow', 'can_view')) {
+            access_denied();
+            return;
+        }
+
+        $visit_id = intval($visit_id);
+        if (!$visit_id) {
+            redirect('admin/patientflow');
+        }
+
+        $visit = $this->patientflow_model->get_visit($visit_id);
+        if (!$visit) {
+            redirect('admin/patientflow');
+        }
+
+        $invoice = null;
+        if ($this->db->field_exists('invoice_no', 'patient_flow_visits') && !empty($visit->invoice_no)) {
+            $invoice = $this->db
+                ->where('invoice_type', 'PROGRAMME')
+                ->where('invoice_no', trim((string) $visit->invoice_no))
+                ->get('patient_flow_fee_invoice')
+                ->row();
+        }
+
+        if (!$invoice) {
+            $this->session->set_flashdata('error_msg', 'Programme bill invoice not found for this visit.');
+            redirect('admin/patientflow');
+        }
+
+        $lines = $this->db->where('invoice_id', (int) $invoice->id)->get('patient_flow_fee_invoice_line')->result();
+        $schedule_id = 0;
+        foreach ($lines as $line) {
+            if (!empty($line->schedule_id)) {
+                $schedule_id = (int) $line->schedule_id;
+                break;
+            }
+        }
+
+        $schedule = null;
+        $enrollment = null;
+        $programme_name = 'Programme';
+        $programme_group_name = '—';
+        $benefit_meta = array(
+            'source' => null,
+            'source_name' => '—',
+            'source_code' => '—',
+            'discount_percent' => 0,
+            'payment_mode' => 'MILESTONE',
+        );
+
+        if ($schedule_id > 0) {
+            $schedule = $this->db->where('id', $schedule_id)->get('patient_flow_programme_payment_schedule')->row();
+            if ($schedule && !empty($schedule->enrollment_id) && $this->db->table_exists('patient_flow_patient_programme_enrollment')) {
+                $enrollment = $this->db->where('id', (int) $schedule->enrollment_id)->get('patient_flow_patient_programme_enrollment')->row();
+                if ($enrollment && !empty($enrollment->programme_id) && $this->db->table_exists('patient_flow_programme')) {
+                    $prog = $this->db->where('id', (int) $enrollment->programme_id)->get('patient_flow_programme')->row();
+                    if ($prog) {
+                        $programme_name = trim((string) ($prog->name ?: ($prog->code ?: 'Programme')));
+                    }
+                }
+
+                if ($this->db->table_exists('patient_flow_programme_group') && !empty($enrollment->group_id)) {
+                    $group = $this->db->where('id', (int) $enrollment->group_id)->get('patient_flow_programme_group')->row();
+                    if ($group) {
+                        $programme_group_name = trim((string) ($group->name ?: ($group->code ?: 'Programme Group')));
+                    }
+                }
+
+                if ($this->db->table_exists('patient_flow_enrollment_benefit')) {
+                    $benefit = $this->db->where('enrollment_id', (int) $schedule->enrollment_id)
+                        ->where('is_current', 1)
+                        ->order_by('id', 'DESC')
+                        ->get('patient_flow_enrollment_benefit')
+                        ->row();
+
+                    if ($benefit) {
+                        $benefit_meta['source'] = trim((string) ($benefit->source ?? ''));
+                        $benefit_meta['discount_percent'] = (float) ($benefit->discount_percent ?? 0);
+                        $benefit_meta['payment_mode'] = trim((string) ($benefit->payment_mode ?: 'MILESTONE'));
+
+                        if ($benefit_meta['source'] === 'ASSISTANCE' && $this->db->table_exists('patient_flow_fee_assistance_category')) {
+                            $source_row = $this->db->where('id', (int) ($benefit->source_id ?? 0))->get('patient_flow_fee_assistance_category')->row();
+                            if ($source_row) {
+                                $benefit_meta['source_name'] = trim((string) ($source_row->category_name ?: ($source_row->category_code ?: 'Assistance')));
+                                $benefit_meta['source_code'] = trim((string) ($source_row->category_code ?: 'A'));
+                            }
+                        } elseif ($benefit_meta['source'] === 'CAMPAIGN' && $this->db->table_exists('patient_flow_discount_campaign')) {
+                            $source_row = $this->db->where('id', (int) ($benefit->source_id ?? 0))->get('patient_flow_discount_campaign')->row();
+                            if ($source_row) {
+                                $benefit_meta['source_name'] = trim((string) ($source_row->reason ?: ($source_row->campaign_code ?: 'Campaign')));
+                                $benefit_meta['source_code'] = trim((string) ($source_row->campaign_code ?: 'C'));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        $setting_rows = $this->setting_model->get();
+        $data = array(
+            'visit' => $visit,
+            'invoice' => $invoice,
+            'lines' => $lines,
+            'schedule' => $schedule,
+            'enrollment' => $enrollment,
+            'programme_name' => $programme_name,
+            'programme_group_name' => $programme_group_name,
+            'benefit_meta' => $benefit_meta,
+            'currency_symbol' => $this->customlib->getHospitalCurrencyFormat(),
+            'setting' => !empty($setting_rows) ? $setting_rows[0] : array(),
+        );
+
+        $this->load->view('admin/patientflow/print_programme_bill', $data);
+    }
+
+    /**
      * Generate and display a payment QR code for a patient flow visit.
      * Gated to level 2 (billing) management: superadmin, or a staff whose
      * role owns the visit's current level when that level is level 2.
@@ -2661,4 +2781,340 @@ foreach ($slots as $pfx => $label) {
         $rows = $this->patientflow_model->get_prescriptions_for_visit($visit_id, $role_name);
         echo json_encode(array('status' => true, 'data' => $rows));
     }
+    public function get_programme_bill_prefill()
+    {
+        if (!$this->rbac->hasPrivilege('patient_flow', 'can_view')) {
+            echo json_encode(array('status' => false, 'message' => 'Access denied.'));
+            return;
+        }
+
+        $visit_id   = (int) $this->input->post('visit_id', true);
+        $patient_id = (int) $this->input->post('patient_id', true);
+        if (!$visit_id) {
+            echo json_encode(array('status' => false, 'message' => 'Visit ID is required.'));
+            return;
+        }
+
+        $visit = $this->patientflow_model->get_visit($visit_id);
+        if (!$visit) {
+            echo json_encode(array('status' => false, 'message' => 'Visit not found.'));
+            return;
+        }
+
+        if (!$patient_id && isset($visit->patient_id)) {
+            $patient_id = (int) $visit->patient_id;
+        }
+
+        $patient_name = '';
+        if ($patient_id && $this->db->table_exists('patients')) {
+            $p = $this->db->where('id', $patient_id)->get('patients')->row();
+            if ($p) {
+                $patient_name = trim((string) ($p->patient_name ?: ($p->name ?: '')));
+            }
+        }
+
+        $stage = $this->patientflow_model->get_stage_from_visit($visit_id);
+        $stage_id = isset($stage['stage_id']) ? (int) $stage['stage_id'] : 0;
+        $stage_code = isset($stage['stage_code']) ? (string) $stage['stage_code'] : '';
+
+        $enrollments = $this->patientflow_model->get_active_enrollments_by_patient($patient_id);
+        if (empty($enrollments)) {
+            echo json_encode(array('status' => false, 'message' => 'No active programme enrollment found for this patient.'));
+            return;
+        }
+
+        $active_campaigns = array();
+        $assistance_categories = array();
+        $prefill_rows = array();
+        foreach ($enrollments as $enr) {
+            $programme_id = (int) ($enr->programme_id ?? 0);
+            $group_id = 0;
+            if ($programme_id > 0 && $this->db->table_exists('patient_flow_programme')) {
+                $programme = $this->db->select('group_id')->where('id', $programme_id)->get('patient_flow_programme')->row();
+                if ($programme) {
+                    $group_id = (int) ($programme->group_id ?? 0);
+                }
+            }
+
+            if ($group_id > 0 && $this->db->table_exists('patient_flow_fee_assistance_category')) {
+                $rows = $this->db->where('group_id', $group_id)->where('is_active', 1)->order_by('id', 'ASC')->get('patient_flow_fee_assistance_category')->result();
+                foreach ($rows as $cat) {
+                    $key = (string) ($cat->category_code ?: $cat->id);
+                    if (!isset($assistance_categories[$key])) {
+                        $assistance_categories[$key] = array(
+                            'id' => (int) $cat->id,
+                            'category_code' => trim((string) ($cat->category_code ?? '')),
+                            'discount_percent' => (float) ($cat->discount_percent ?? 0),
+                            'validity_quarters' => (int) ($cat->validity_quarters ?? 2),
+                            'payment_mode' => trim((string) ($cat->payment_mode ?? 'STAGEWISE')),
+                            'group_id' => (int) $group_id,
+                        );
+                    }
+                }
+            }
+
+            $campaigns = $this->patientflow_model->get_active_discount_campaigns($programme_id, $group_id, date('Y-m-d'));
+            foreach ($campaigns as $campaign) {
+                $key = (string) ($campaign->campaign_code ?: $campaign->id);
+                if (!isset($active_campaigns[$key])) {
+                    $active_campaigns[$key] = array(
+                        'id' => (int) $campaign->id,
+                        'campaign_code' => trim((string) ($campaign->campaign_code ?? '')),
+                        'discount_percent' => (float) ($campaign->discount_percent ?? 0),
+                        'reason' => trim((string) ($campaign->reason ?? '')),
+                        'start_date' => $campaign->start_date,
+                        'end_date' => $campaign->end_date,
+                        'allow_stacking' => (int) ($campaign->allow_stacking ?? 0),
+                        'payment_mode' => trim((string) ($campaign->payment_mode ?? 'MILESTONE')),
+                    );
+                }
+            }
+
+            $schedule_rows = $this->patientflow_model->get_pending_payment_schedule_rows($enr->id, $stage_id ?: null);
+            if (empty($schedule_rows)) {
+                $schedule_rows = $this->patientflow_model->get_pending_payment_schedule_rows($enr->id, null);
+            }
+
+            foreach ($schedule_rows as $r) {
+                $standard_amount = (float) ($r->standard_amount ?? 0);
+                $payable_amount  = (float) ($r->payable_amount ?? 0);
+                $discount_amount = max(0.00, $standard_amount - $payable_amount);
+                $benefit = $this->db->where('enrollment_id', (int) $enr->id)
+                    ->where('is_current', 1)
+                    ->get('patient_flow_enrollment_benefit')->row();
+                $discount_percent = (float) ($r->discount_percent ?? 0);
+                if ($benefit && $benefit->discount_percent > $discount_percent) {
+                    $discount_percent = (float) $benefit->discount_percent;
+                }
+
+                $prefill_rows[] = array(
+                    'schedule_id'      => (int) $r->id,
+                    'enrollment_id'    => (int) $r->enrollment_id,
+                    'enrollment_uid'   => (string) ($r->enrollment_uid ?: ($enr->uid ?: '')),
+                    'programme_id'    => (int) ($enr->programme_id ?? 0),
+                    'programme_name'   => (string) ($enr->programme_name ?: ($enr->programme_code ?: 'Programme')),
+                    'programme_code'   => (string) ($enr->programme_code ?: ''),
+                    'coverage'         => (string) ($enr->coverage ?: ''),
+                    'quarter_no'       => (int) ($r->quarter_no ?? 0),
+                    'seq_no'           => (int) ($r->seq_no ?? 0),
+                    'unit_type'        => (string) ($r->unit_type ?: 'MILESTONE'),
+                    'standard_amount'  => number_format($standard_amount, 2, '.', ''),
+                    'discount_percent' => number_format($discount_percent, 2, '.', ''),
+                    'discount_amount'  => number_format($discount_amount, 2, '.', ''),
+                    'payable_amount'   => number_format($payable_amount, 2, '.', ''),
+                    'stage_from_id'    => (int) ($r->stage_from_id ?? 0),
+                    'stage_to_id'      => (int) ($r->stage_to_id ?? 0),
+                    'status'           => (string) ($r->status ?: 'PENDING'),
+                    'payment_mode'     => $benefit ? (string) $benefit->payment_mode : 'MILESTONE',
+                );
+            }
+        }
+
+        if (empty($prefill_rows)) {
+            echo json_encode(array('status' => false, 'message' => 'No pending payment schedule row covers this stage. Please generate a schedule first.', 'can_generate_schedule' => true));
+            return;
+        }
+
+        echo json_encode(array(
+            'status'       => true,
+            'patient_id'   => $patient_id,
+            'patient_name' => $patient_name,
+            'visit_id'     => $visit_id,
+            'stage_id'     => $stage_id,
+            'stage_code'   => $stage_code,
+            'campaigns'    => array_values($active_campaigns),
+            'assistance'   => array_values($assistance_categories),
+            'rows'         => $prefill_rows,
+        ));
+    }
+
+    public function generate_programme_bill()
+    {
+        if (!$this->rbac->hasPrivilege('patient_flow', 'can_add')) {
+            echo json_encode(array('status' => false, 'message' => 'Access denied.'));
+            return;
+        }
+
+        $visit_id     = (int) $this->input->post('visit_id', true);
+        $schedule_id  = (int) $this->input->post('schedule_id', true);
+        $assistance_id = (int) $this->input->post('assistance_id', true);
+        $campaign_id  = (int) $this->input->post('campaign_id', true);
+        $amount       = (float) $this->input->post('amount', true);
+        $discount_pct = (float) $this->input->post('discount_percent', true);
+        $payment_mode = trim((string) $this->input->post('payment_mode', true));
+        $note         = trim((string) $this->input->post('note', true));
+
+        if (!$visit_id || !$schedule_id) {
+            echo json_encode(array('status' => false, 'message' => 'Visit and schedule are required.'));
+            return;
+        }
+
+        $row = $this->db->where('id', $schedule_id)->get('patient_flow_programme_payment_schedule')->row();
+        if (!$row || $row->status !== 'PENDING') {
+            echo json_encode(array('status' => false, 'message' => 'Selected schedule row is not pending.'));
+            return;
+        }
+
+        $visit = $this->patientflow_model->get_visit($visit_id);
+        if (!$visit) {
+            echo json_encode(array('status' => false, 'message' => 'Visit not found.'));
+            return;
+        }
+
+        $patient_id = !empty($visit->patient_id) ? (int) $visit->patient_id : 0;
+        if ($patient_id <= 0) {
+            echo json_encode(array('status' => false, 'message' => 'Patient not found for this visit.'));
+            return;
+        }
+
+        if ($this->db->field_exists('invoice_no', 'patient_flow_visits') && !empty($visit->invoice_no)) {
+            $existing_invoice = $this->db
+                ->where('invoice_type', 'PROGRAMME')
+                ->where('invoice_no', trim((string) $visit->invoice_no))
+                ->get('patient_flow_fee_invoice')
+                ->row();
+            if ($existing_invoice) {
+                echo json_encode(array('status' => false, 'message' => 'This visit already has a generated programme bill.'));
+                return;
+            }
+        }
+
+        if ($this->db->table_exists('patient_flow_fee_invoice_line')) {
+            $existing_schedule_invoice = $this->db
+                ->select('i.id, i.status, i.invoice_no')
+                ->from('patient_flow_fee_invoice i')
+                ->join('patient_flow_fee_invoice_line l', 'l.invoice_id = i.id', 'left')
+                ->where('i.invoice_type', 'PROGRAMME')
+                ->where('l.schedule_id', (int) $schedule_id)
+                ->where_in('i.status', array('PAID', 'PENDING'))
+                ->limit(1)
+                ->get()
+                ->row();
+            if ($existing_schedule_invoice) {
+                echo json_encode(array('status' => false, 'message' => 'This programme schedule already has a generated bill.'));
+                return;
+            }
+        }
+
+        if ($row->status === 'PAID') {
+            echo json_encode(array('status' => false, 'message' => 'This programme schedule is already paid.'));
+            return;
+        }
+
+        $selected_assistance_discount = 0.0;
+        if ($assistance_id > 0 && $this->db->table_exists('patient_flow_fee_assistance_category')) {
+            $assistance = $this->db->where('id', $assistance_id)->where('is_active', 1)->get('patient_flow_fee_assistance_category')->row();
+            if (!$assistance) {
+                echo json_encode(array('status' => false, 'message' => 'Selected fee assistance is not active anymore.'));
+                return;
+            }
+            $selected_assistance_discount = (float) ($assistance->discount_percent ?? 0);
+        }
+
+        if ($campaign_id > 0) {
+            $campaign = $this->db->where('id', $campaign_id)->where('status', 'APPROVED')->where('start_date <=', date('Y-m-d'))->where('end_date >=', date('Y-m-d'))->get('patient_flow_discount_campaign')->row();
+            if (!$campaign) {
+                echo json_encode(array('status' => false, 'message' => 'Selected discount campaign is not active anymore.'));
+                return;
+            }
+            $discount_pct = (float) max($discount_pct, (float) ($campaign->discount_percent ?? $discount_pct));
+        }
+
+        if ($selected_assistance_discount > 0) {
+            $discount_pct = (float) max($discount_pct, $selected_assistance_discount);
+        }
+
+        if ($amount <= 0 || $discount_pct < 0 || $discount_pct > 100) {
+            echo json_encode(array('status' => false, 'message' => 'Enter a valid amount and discount percentage.'));
+            return;
+        }
+
+        $max_amount = (float) ($row->payable_amount ?? 0);
+        if ($amount > $max_amount + 0.01) {
+            echo json_encode(array('status' => false, 'message' => 'Bill amount cannot exceed the scheduled payable amount.'));
+            return;
+        }
+
+        $staff_id = (int) $this->customlib->getStaffID();
+        $invoice_no = $this->patientflow_model->generate_invoice_no();
+
+        if ($this->db->table_exists('patient_flow_fee_invoice')) {
+            $invoice_payload = array(
+                'invoice_no'    => $invoice_no,
+                'invoice_type'  => 'PROGRAMME',
+                'patient_id'    => $patient_id,
+                'enrollment_id'  => (int) $row->enrollment_id,
+                'invoice_date'  => date('Y-m-d H:i:s'),
+                'subtotal'      => $amount,
+                'gst_total'     => 0,
+                'grand_total'   => $amount,
+                'status'        => 'PAID',
+                'created_by'    => $staff_id,
+            );
+            $this->db->insert('patient_flow_fee_invoice', $invoice_payload);
+            $invoice_id = (int) $this->db->insert_id();
+
+            $description = 'Programme Billing';
+            if ($this->db->table_exists('patient_flow_patient_programme_enrollment')) {
+                $enr = $this->db->where('id', (int) $row->enrollment_id)->get('patient_flow_patient_programme_enrollment')->row();
+                if ($enr && $this->db->table_exists('patient_flow_programme')) {
+                    $prog = $this->db->where('id', (int) $enr->programme_id)->get('patient_flow_programme')->row();
+                    if ($prog) {
+                        $description = 'Programme - ' . ($prog->name ?: $prog->code ?: 'Programme');
+                    }
+                }
+            }
+            $this->patientflow_model->add_fee_invoice_line(
+                $invoice_id,
+                'PROGRAMME',
+                $description,
+                1,
+                $amount,
+                0,
+                $amount,
+                'EXEMPT',
+                0,
+                0,
+                'PROGRAMME',
+                $schedule_id
+            );
+        }
+
+        $this->db->where('id', $schedule_id)->update('patient_flow_programme_payment_schedule', array(
+            'status'      => 'PAID',
+            'paid_at'     => date('Y-m-d H:i:s'),
+            'payment_ref' => $invoice_no,
+        ));
+
+        $this->patientflow_model->write_fee_audit_log('programme_payment_schedule', $schedule_id, 'apply_campaign',
+            json_encode(array('assistance_id' => $assistance_id, 'campaign_id' => $campaign_id, 'discount_percent' => $discount_pct)),
+            json_encode(array('invoice_no' => $invoice_no, 'assistance_id' => $assistance_id, 'campaign_id' => $campaign_id, 'discount_percent' => $discount_pct, 'payment_mode' => $payment_mode, 'note' => $note)),
+            $staff_id);
+
+        if ($this->db->field_exists('invoice_no', 'patient_flow_visits')) {
+            $this->db->where('id', $visit_id)->update('patient_flow_visits', array(
+                'invoice_no'     => $invoice_no,
+                'invoice_no_at'  => date('Y-m-d H:i:s'),
+                'billing_status' => 'billed',
+            ));
+        }
+
+        $this->patientflow_model->write_fee_audit_log('programme_payment_schedule', $schedule_id, 'create_invoice',
+            json_encode(array('status' => 'PENDING')), json_encode(array(
+                'status' => 'PAID',
+                'invoice_no' => $invoice_no,
+                'amount' => $amount,
+                'discount_percent' => $discount_pct,
+                'payment_mode' => $payment_mode,
+                'note' => $note,
+            )), $staff_id);
+
+        echo json_encode(array(
+            'status'    => true,
+            'message'   => 'Programme bill generated successfully.',
+            'invoice_no'=> $invoice_no,
+            'amount'    => number_format($amount, 2, '.', ''),
+        ));
+    }
+
 }

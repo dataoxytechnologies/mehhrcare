@@ -597,6 +597,13 @@ if (!function_exists('pf_ct_age_label')) {
                                          <i class="fa fa-print"></i> &nbsp;<?php echo $pf_paid ? ($this->lang->line('print_invoice') ?: 'Print Invoice') : ($this->lang->line('print_billing_ref') ?: 'Print Billing Ref'); ?>
                                      </a>
                                      <?php } ?>
+                                     <?php if (!empty($v->invoice_no)) { ?>
+                                     <a href="<?php echo site_url('admin/patientflow/print_programme_bill/' . $v->id); ?>" target="_blank"
+                                        class="btn btn-sm btn-outline-warning w-100 mb-1" data-bs-toggle="tooltip"
+                                        title="Print Programme Bill">
+                                         <i class="fas fa-file-invoice"></i> &nbsp;Print Programme Bill
+                                     </a>
+                                     <?php } ?>
                                      <?php if (!empty($v->level_print_vial)) { ?>
                                      <a href="<?php echo site_url('admin/patientflow/print_vial_labels/' . $v->id); ?>" target="_blank"
                                         class="btn btn-sm btn-outline-success w-100 mb-1" data-bs-toggle="tooltip"
@@ -3162,45 +3169,6 @@ $(document).on('click', '#pf_ms_save', function () {
 });
 </script>
 
-<!-- <div class="modal fade" id="pfProgrammeModal" tabindex="-1" aria-labelledby="pfProgrammeModalTitle" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header bg-info text-white">
-                <h5 class="modal-title" id="pfProgrammeModalTitle"><i class="fa fa-briefcase me-2"></i>Programme Details</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <div class="text-center py-3" id="pfProgrammeEmpty">
-                    <i class="fa fa-info-circle fa-2x text-muted mb-2"></i>
-                    <p class="text-muted mb-0">No programme assigned to this visit.</p>
-                </div>
-                <div id="pfProgContent" class="d-none">
-                    <table class="table table-bordered table-sm">
-                        <tr>
-                            <th width="30%">Programme Code</th>
-                            <td id="pfProgCode"></td>
-                        </tr>
-                        <tr>
-                            <th width="30%">Programme Name</th>
-                            <td id="pfProgName"></td>
-                        </tr>
-                        <tr>
-                            <th width="30%">Visit ID</th>
-                            <td id="pfProgVisitId"></td>
-                        </tr>
-                        <tr>
-                            <th width="30%">Patient Name</th>
-                            <td id="pfProgPatientName"></td>
-                        </tr>
-                    </table>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-            </div>
-        </div>
-    </div>
-</div> -->
 <script type="text/javascript">
 $(document).on('click', '.pf-programme-btn', function () {
     var $btn = $(this);
@@ -3339,169 +3307,6 @@ $(document).on('click', '.pf-programme-btn', function () {
     </div>
 </div>
 
-<script type="text/javascript">
-$(document).on('click', '.generatebill', function() {
-    var $btn = $(this);
-    var visitId = $btn.data('visit-id');
-    var patientId = $btn.data('patient-id');
-    var createModal = $('#billModal');
-    var $this = $(this);
-    $this.btnLoading();
-    $.ajax({
-        url: '<?php echo site_url('admin/patientflow/get_bill_prefill'); ?>',
-        type: 'POST',
-        dataType: 'json',
-        data: { visit_id: visitId, patient_id: patientId },
-        success: function(res) {
-            if (res.status) {
-                // Prefill patient name
-                $('#billModal #addpatient_id').val(res.patient_id).trigger('change');
-                var patientNameInput = $('#pref_patient_name, #patient_name');
-                if (patientNameInput.length) {
-                    patientNameInput.val(res.patient_name);
-                }
-                // Prefill prescription number from visit or first prescription
-                var prescription_no = '';
-                if (res.medicines && res.medicines.length > 0) {
-                    var firstRx = res.medicines[0];
-                    prescription_no = (firstRx.series ? firstRx.series + '/' : '') + (firstRx.medicine_code ? firstRx.medicine_code : '');
-                }
-                $('#pref_prescription_no').val(prescription_no);
-                // Prefill doctor
-                $('#pref_doctor_name').val(res.doctor_name);
-                $('#pref_doctor_display').text(res.doctor_name || '-');
-                // Prefill amount
-                var total_amount = res.total_amount || '0.00';
-                $('#pref_amount').val(total_amount);
-                $('#pref_amount_display').text(total_amount);
-                // Prefill programme name and status
-                if (res.programme_name) {
-                    $('#pref_programme_name').val(res.programme_name);
-                }
-                if (res.programme_status) {
-                    $('#pref_programme_status').val(res.programme_status);
-                }
-                // Prefill medicines into modal table
-                var medicineRows = '';
-                if (res.medicines && res.medicines.length > 0) {
-                    var rowCounter = 1;
-                    $.each(res.medicines, function(idx, rx) {
-                        var qty = (rx.amount || 1);
-                        var price = (rx.price || 0);
-                        var rowTotal = qty * price;
-                        medicineRows += '<input type="hidden" name="previous_ids[]" value="0">' +
-                            '<tr id="row' + rowCounter + '">' +
-                            '<td width="12%">' +
-                            '<input type="hidden" name="insert_id_' + rowCounter + '" value="0">' +
-                            '<input type="hidden" name="total_rows[]" value="' + rowCounter + '">' +
-                            '<input type="hidden" class="post_medicine_id" value="' + (rx.medicine_id || 0) + '">' +
-                            '<input type="hidden" class="medicine_batch_detail_id" value="0">' +
-                            '<input type="hidden" class="sale_price" value="' + price + '">' +
-                            '<input type="hidden" class="quantity" value="' + qty + '">' +
-                            '<input type="hidden" class="mdiscount" value="0">' +
-                            '<select class="form-control select3 medicine_name w-100" id="medicine_name' + rowCounter + '" name="medicine_name_id_' + rowCounter + '">' +
-                            '<option value="">Select</option>' +
-                            '<option value="' + rx.medicine_id + '" selected>' + (rx.medicine_name || rx.medicine_code || '') + '</option>' +
-                            '</select>' +
-                            '<span class="text-danger"></span>' +
-                            '</td>' +
-                            '<td>' +
-                            '<input type="text" class="form-control medicine_category_display" readonly placeholder="-">' +
-                            '</td>' +
-                            '<td width="12%">' +
-                            '<select class="form-control batch_no select3" id="batch_no' + rowCounter + '" name="batch_no_id_' + rowCounter + '">' +
-                            '<option value="">Select</option>' +
-                            '</select>' +
-                            '<span class="text-danger"></span>' +
-                            '</td>' +
-                            '<td width="12%">' +
-                            '<input type="text" readonly name="expire_date_' + rowCounter + '" id="expire_date' + rowCounter + '" class="form-control exp_date"/>' +
-                            '<input type="hidden" readonly name="expiry_' + rowCounter + '" id="expiry_' + rowCounter + '" class="form-control expiry"/>' +
-                            '</td>' +
-                            '<td>' +
-                            '<div class="input-group">' +
-                            '<input type="text" name="quantity_' + rowCounter + '" id="quantity' + rowCounter + '" data-rowid="' + rowCounter + '" class="form-control text-end edit_refund_qty qty" value="' + qty + '">' +
-                            '<input type="hidden" id="valid_reund_quantity' + rowCounter + '" class="form-control text-end qty">' +
-                            '<span class="input-group-text text-danger available_qty sh-fs-10pt" id="totalqty0">&nbsp;&nbsp;</span>' +
-                            '</div>' +
-                            '<input type="hidden" class="available_quantity" name="available_quantity_' + rowCounter + '" id="available_quantity0">' +
-                            '</td>' +
-                            '<td class="text-end">' +
-                            '<input type="hidden" name="sale_rate_price_' + rowCounter + '" id="sale_rate_price' + rowCounter + '" class="form-control text-end sale_rate" readonly>' +
-                            '<input type="hidden" name="tpa_rate_' + rowCounter + '" id="tpa_rate' + rowCounter + '" class="form-control text-end tpa_rate" readonly>' +
-                            '<input type="text" name="sale_price_' + rowCounter + '" id="sale_price' + rowCounter + '" class="form-control text-end price" readonly value="' + price + '">' +
-                            '<span class="text-danger"></span>' +
-                            '</td>' +
-                            '<td class="text-end">' +
-                            '<div class="input-group">' +
-                            '<input type="text" class="form-control right-border-none medicine_tax" name="tax_' + rowCounter + '" readonly id="tax' + rowCounter + '" autocomplete="off">' +
-                            '<span class="input-group-text"> %</span>' +
-                            '</div>' +
-                            '</td>' +
-                            '<td class="text-end">' +
-                            '<div class="input-group">' +
-                            '<input type="text" class="form-control right-border-none medicine_discount" name="mdiscount_' + rowCounter + '" id="mdiscount' + rowCounter + '" autocomplete="off">' +
-                            '<span class="input-group-text"> %</span>' +
-                            '</div>' +
-                            '</td>' +
-                            '<td class="text-end" width="12%">' +
-                            '<input type="text" name="amount_' + rowCounter + '" id="amount' + rowCounter + '" placeholder="" class="form-control text-end subtot" readonly value="' + rowTotal.toFixed(2) + '">' +
-                            '<span class="text-danger"></span>' +
-                            '</td>' +
-                            '<td>' +
-                            '<button type="button" class="btn btn-sm btn-outline-danger editdelete_row" data-row-id="' + rowCounter + '" autocomplete="off"><i class="fa fa-times"></i></button>' +
-                            '</td>' +
-                            '</tr>';
-                        rowCounter++;
-                    });
-                }
-                // Set total amount - compute from medicine amounts if available
-                var final_total = res.total_amount || 0;
-                // If there are medicine amounts, sum them
-                if (res.medicines && res.medicines.length > 0) {
-                    var computed_total = 0;
-                    $.each(res.medicines, function(i, rx) {
-                        computed_total += (parseFloat(rx.amount) || 0);
-                    });
-                    final_total = computed_total.toFixed(2);
-                }
-                $('#net_amount').val(final_total);
-                $('#total').val(final_total);
-                $('#pref_patient_display').text(res.patient_name || '-');
-                $('#pref_presc_display').text(prescription_no || '-');
-// Load the bill form body - populate medicine table with visit prescriptions
-                var formBody = $('#billModal .modal-body');
-                formBody.find('#tableID').html(medicineRows);
-                formBody.find('#net_amount').val(final_total);
-                formBody.find('#total').val(final_total);
-                // Show the modal
-                shModal('billModal').show();
-                createModal.removeClass('modal_loading');
-                // Initialize select2 on modal
-                formBody.find('.select3').select2({ dropdownParent: $('#billModal') });
-                formBody.find('.filestyle').dropify();
-            } else {
-                errorMsg(res.message || 'Failed to load bill form.');
-                $this.btnReset();
-                createModal.removeClass('modal_loading');
-            }
-        },
-        beforeSend: function() {
-            $this.btnLoading();
-            createModal.addClass('modal_loading');
-        },
-        error: function(xhr) {
-            alert("Error occured.please try again");
-            $this.btnReset();
-            createModal.removeClass('modal_loading');
-        },
-        complete: function() {
-            $this.btnReset();
-            createModal.removeClass('modal_loading');
-        }
-    });
-});
-</script>
 <!-- Patientflow Billing Popup Modal -->
 <div class="modal fade" id="billingModal" tabindex="-1" aria-labelledby="billingModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-lg">
@@ -3563,3 +3368,336 @@ $(document).on('click', '.generatebill', function() {
         </div>
     </div>
 </div>
+
+<!-- Programme Bill Modal -->
+<div class="modal fade" id="programmeBillModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title">Programme Bill</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Patient</label>
+                        <div class="form-control-plaintext" id="pb_patient_name">-</div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Visit</label>
+                        <div class="form-control-plaintext" id="pb_visit_label">-</div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Programme</label>
+                        <div class="form-control-plaintext" id="pb_programme_name">-</div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Stage</label>
+                        <div class="form-control-plaintext" id="pb_stage_code">-</div>
+                    </div>
+                    <div class="col-md-12">
+                        <label class="form-label fw-bold">Pending schedule row</label>
+                        <select id="pb_schedule" class="form-select"></select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Coverage</label>
+                        <div class="form-control-plaintext" id="pb_coverage">-</div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Payment mode</label>
+                        <select id="pb_payment_mode" class="form-select">
+                            <option value="MILESTONE">Milestone</option>
+                            <option value="STAGEWISE">Stage-wise</option>
+                            <option value="CASH">Cash</option>
+                            <option value="CARD">Card</option>
+                            <option value="UPI">UPI</option>
+                            <option value="BANK_TRANSFER">Bank Transfer</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label fw-bold">Standard amount</label>
+                        <input type="text" id="pb_standard_amount" class="form-control" readonly>
+                    </div>
+                    <div class="col-md-5">
+                        <label class="form-label fw-bold">Fee assistance</label>
+                        <select id="pb_assistance" class="form-select"></select>
+                    </div>
+                    <div class="col-md-5">
+                        <label class="form-label fw-bold">Discount campaign</label>
+                        <select id="pb_campaign" class="form-select"></select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label fw-bold">Discount %</label>
+                        <input type="number" id="pb_discount_percent" class="form-control" min="0" max="100" step="0.01" value="0">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label fw-bold">Discount amount</label>
+                        <input type="text" id="pb_discount_amount" class="form-control" readonly>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label fw-bold">Payable amount</label>
+                        <input type="text" id="pb_payable_amount" class="form-control" readonly>
+                    </div>
+                    <div class="col-md-8">
+                        <label class="form-label fw-bold">Final bill amount</label>
+                        <input type="number" id="pb_amount" class="form-control" min="0" step="0.01">
+                    </div>
+                    <div class="col-md-12">
+                        <label class="form-label fw-bold">Notes</label>
+                        <textarea id="pb_note" class="form-control" rows="2" placeholder="Optional notes for this programme bill"></textarea>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" id="pb_submit">Generate Bill</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script type="text/javascript">
+    
+(function () {
+    function fmtMoney(value) {
+        var num = parseFloat(value || 0);
+        if (isNaN(num)) { return '0.00'; }
+        return num.toFixed(2);
+    }
+
+    window.populateCampaignOptions = function (campaigns) {
+        var $select = $('#pb_campaign');
+        $select.empty();
+        $select.append('<option value="">Select</option>');
+
+        if (!campaigns || !campaigns.length) {
+            $select.prop('disabled', true);
+            return;
+        }
+
+        $select.prop('disabled', false);
+        $.each(campaigns, function (i, campaign) {
+            var code = campaign.campaign_code || 'Campaign';
+            var percent = parseFloat(campaign.discount_percent || 0);
+            var label = code + ' — ' + percent.toFixed(2) + '%';
+            if (campaign.start_date || campaign.end_date) {
+                label += ' (' + (campaign.start_date || '—') + ' to ' + (campaign.end_date || '—') + ')';
+            }
+            $select.append($('<option>', {
+                value: campaign.id,
+                text: label,
+                'data-discount': percent,
+                'data-code': code
+            }));
+        });
+    };
+
+    window.populateAssistanceOptions = function (assistance) {
+        var $select = $('#pb_assistance');
+        $select.empty();
+        $select.append('<option value="">No assistance</option>');
+
+        if (!assistance || !assistance.length) {
+            $select.prop('disabled', true);
+            return;
+        }
+
+        $select.prop('disabled', false);
+        $.each(assistance, function (i, item) {
+            var code = item.category_code || 'Category';
+            var percent = parseFloat(item.discount_percent || 0);
+            $select.append($('<option>', {
+                value: item.id,
+                text: code + ' — ' + percent.toFixed(2) + '%',
+                'data-discount': percent,
+                'data-code': code
+            }));
+        });
+    };
+
+    window.recalculateProgrammeBillAmounts = function () {
+        var standardAmount = parseFloat($('#pb_standard_amount').val() || 0);
+        var assistancePercent = parseFloat($('#pb_assistance').find('option:selected').data('discount') || 0);
+        var campaignPercent = parseFloat($('#pb_campaign').find('option:selected').data('discount') || 0);
+
+        var chosenDiscount = Math.max(assistancePercent, campaignPercent);
+        var discountAmount = standardAmount * (chosenDiscount / 100);
+        var payableAmount = standardAmount - discountAmount;
+
+        $('#pb_discount_percent').val(chosenDiscount.toFixed(2));
+        $('#pb_discount_amount').val(fmtMoney(discountAmount));
+        $('#pb_payable_amount').val(fmtMoney(payableAmount));
+        $('#pb_amount').val(fmtMoney(payableAmount));
+        return { assistancePercent: assistancePercent, campaignPercent: campaignPercent, chosenDiscount: chosenDiscount };
+    };
+
+    function setProgrammeBillFields(row) {
+        if (!row) {
+            return;
+        }
+        $('#pb_programme_name').text((row.programme_name || row.programme_code || 'Programme') + (row.coverage ? ' (' + row.coverage + ')' : ''));
+        $('#pb_stage_code').text(row.stage_code || '—');
+        $('#pb_coverage').text(row.coverage || '—');
+        $('#pb_standard_amount').val(fmtMoney(row.standard_amount));
+        $('#pb_assistance').val('');
+        $('#pb_campaign').val('');
+        $('#pb_discount_percent').val('0.00');
+        $('#pb_discount_amount').val('0.00');
+        $('#pb_payable_amount').val(fmtMoney(row.payable_amount || 0));
+        $('#pb_amount').val(fmtMoney(row.payable_amount || 0));
+        $('#pb_payment_mode').val((row.payment_mode || 'MILESTONE'));
+        recalculateProgrammeBillAmounts();
+    }
+
+    $(document).on('change', '#pb_schedule', function () {
+        var rows = $('#pb_schedule').data('programme-rows') || [];
+        var selectedId = $(this).val();
+        var row = null;
+        $.each(rows, function (idx, cur) {
+            if (String(cur.schedule_id) === String(selectedId)) {
+                row = cur;
+                return false;
+            }
+        });
+        if (!row) {
+            return;
+        }
+        row.stage_code = row.stage_code || $('#pb_stage_code').text();
+        setProgrammeBillFields(row);
+    });
+
+    $('#pb_campaign').on('change', function () {
+        recalculateProgrammeBillAmounts();
+    });
+
+    $('#pb_assistance').on('change', function () {
+        recalculateProgrammeBillAmounts();
+    });
+
+    $('#pb_discount_percent').on('input', function () {
+        var standardAmount = parseFloat($('#pb_standard_amount').val() || 0);
+        var discountPercent = parseFloat($(this).val() || 0);
+        if (isNaN(discountPercent)) { discountPercent = 0; }
+        if (discountPercent < 0) { discountPercent = 0; }
+        if (discountPercent > 100) { discountPercent = 100; }
+        var discountAmount = standardAmount * (discountPercent / 100);
+        var payableAmount = standardAmount - discountAmount;
+        $('#pb_discount_amount').val(fmtMoney(discountAmount));
+        $('#pb_payable_amount').val(fmtMoney(payableAmount));
+        $('#pb_amount').val(fmtMoney(payableAmount));
+        $(this).val(discountPercent.toFixed(2));
+
+        // When the user manually edits the selected discount value, the system applies the higher benefit by rule.
+        var assistancePercent = parseFloat($('#pb_assistance').find('option:selected').data('discount') || 0);
+        var campaignPercent = parseFloat($('#pb_campaign').find('option:selected').data('discount') || 0);
+        var chosenDiscount = Math.max(assistancePercent, campaignPercent);
+        if (discountPercent > chosenDiscount + 0.001) {
+            $('#pb_discount_percent').val(chosenDiscount.toFixed(2));
+            $('#pb_discount_amount').val(fmtMoney(standardAmount * (chosenDiscount / 100)));
+            $('#pb_payable_amount').val(fmtMoney(standardAmount - standardAmount * (chosenDiscount / 100)));
+            $('#pb_amount').val(fmtMoney(standardAmount - standardAmount * (chosenDiscount / 100)));
+        }
+    });
+
+    $(document).on('click', '#pb_submit', function () {
+        var scheduleId = $('#pb_schedule').val();
+        var visitId = $('#pb_submit').data('visit-id');
+        if (!scheduleId) {
+            alert('Please select a pending programme schedule.');
+            return;
+        }
+
+        var amount = parseFloat($('#pb_amount').val() || 0);
+        var discountPercent = parseFloat($('#pb_discount_percent').val() || 0);
+        var paymentMode = $('#pb_payment_mode').val();
+        var note = $('#pb_note').val();
+
+        if (amount <= 0) {
+            alert('Please enter a valid bill amount.');
+            return;
+        }
+
+        var $btn = $(this).prop('disabled', true);
+        $.ajax({
+            url: base_url + 'admin/patientflow/generate_programme_bill',
+            type: 'POST',
+            dataType: 'json',
+            data: {
+                visit_id: visitId,
+                schedule_id: scheduleId,
+                assistance_id: $('#pb_assistance').val() || 0,
+                campaign_id: $('#pb_campaign').val() || 0,
+                amount: amount,
+                discount_percent: discountPercent,
+                payment_mode: paymentMode,
+                note: note
+            },
+            success: function (res) {
+                $btn.prop('disabled', false);
+                if (!res.status) {
+                    alert(res.message || 'Unable to generate programme bill.');
+                    return;
+                }
+                alert(res.message || 'Programme bill generated successfully.');
+                var modal = bootstrap.Modal.getInstance(document.getElementById('programmeBillModal'));
+                if (modal) { modal.hide(); }
+                setTimeout(function () { location.reload(); }, 500);
+            },
+            error: function () {
+                $btn.prop('disabled', false);
+                alert('Error generating programme bill. Please try again.');
+            }
+        });
+    });
+})();
+
+$(document).on('click', '.generatebill', function() {
+    var $btn = $(this);
+    var visitId = $btn.data('visit-id');
+    var patientId = $btn.data('patient-id');
+
+    $btn.btnLoading();
+
+    $.ajax({
+        url: '<?php echo site_url('admin/patientflow/get_programme_bill_prefill'); ?>',
+        type: 'POST',
+        dataType: 'json',
+        data: { visit_id: visitId, patient_id: patientId },
+        success: function(res) {
+            $btn.btnReset();
+
+            if (!res || !res.status) {
+                alert((res && res.message) ? res.message : 'No programme bill is available for this visit.');
+                return;
+            }
+
+            $('#pb_patient_name').text(res.patient_name || '—');
+            $('#pb_visit_label').text('Visit #' + (visitId || '—'));
+            $('#pb_submit').data('visit-id', visitId);
+            $('#pb_schedule').empty();
+            $('#pb_schedule').data('programme-rows', res.rows || []);
+            populateAssistanceOptions(res.assistance || []);
+            populateCampaignOptions(res.campaigns || []);
+
+            $.each(res.rows || [], function(i, row) {
+                var label = (row.programme_name || row.programme_code || 'Programme') + ' · Q' + (row.quarter_no || 1);
+                var amountText = ' ₹' + (parseFloat(row.payable_amount || 0)).toFixed(2);
+                $('#pb_schedule').append('<option value="' + row.schedule_id + '">' + label + amountText + '</option>');
+            });
+
+            if (res.rows && res.rows.length) {
+                res.rows[0].stage_code = res.stage_code || res.rows[0].stage_code || '—';
+                $('#pb_schedule').val(String(res.rows[0].schedule_id));
+                $('#pb_schedule').trigger('change');
+            }
+
+            var modal = new bootstrap.Modal(document.getElementById('programmeBillModal'));
+            modal.show();
+        },
+        error: function() {
+            $btn.btnReset();
+            alert('Unable to load programme bill details for this visit.');
+        }
+    });
+});
+</script>
