@@ -156,6 +156,32 @@ class Patientflow extends Admin_Controller
         }
         $data['pf_visit_history'] = $pf_visit_history;
 
+        // Batch check which visits have an existing PROGRAMME invoice so the board
+        // only displays "Print Programme Bill" for visits that genuinely have one.
+        if (!empty($data['visits']) && $this->db->table_exists('patient_flow_fee_invoice')) {
+            $invoice_nos = array();
+            foreach ($data['visits'] as $vv) {
+                if (!empty($vv->invoice_no)) {
+                    $invoice_nos[] = trim((string) $vv->invoice_no);
+                }
+            }
+            $programme_invoices = array();
+            if (!empty($invoice_nos)) {
+                $rows = $this->db
+                    ->select('invoice_no')
+                    ->where('invoice_type', 'PROGRAMME')
+                    ->where_in('invoice_no', array_unique($invoice_nos))
+                    ->get('patient_flow_fee_invoice')
+                    ->result();
+                foreach ($rows as $r) {
+                    $programme_invoices[trim((string) $r->invoice_no)] = true;
+                }
+            }
+            foreach ($data['visits'] as $vv) {
+                $vv->has_programme_bill = (!empty($vv->invoice_no) && !empty($programme_invoices[trim((string) $vv->invoice_no)]));
+            }
+        }
+
         // Filter dropdown: own levels for staff, all levels for superadmin.
         $data['levels']            = $ctx['allowed_level_ids'] === null ? $this->patientflow_model->get_chain() : $ctx['my_levels'];
         $data['filter_level']      = $filter_level;
@@ -983,10 +1009,9 @@ class Patientflow extends Admin_Controller
         }
 
         $visit_id = intval($this->input->post('visit_id', true));
-        $code     = strtoupper(trim((string) $this->input->post('pbhp_code', true)));
 
-        if (!$visit_id || $code === '') {
-            echo json_encode(array('status' => false, 'message' => 'Visit id and PBHP code are required.'));
+        if (!$visit_id) {
+            echo json_encode(array('status' => false, 'message' => 'Visit id is required.'));
             return;
         }
 
@@ -996,10 +1021,44 @@ class Patientflow extends Admin_Controller
             return;
         }
 
-        // The submitted code must be one of the known codes.
-        if (!in_array($code, array_values($this->patientflow_model->pbhp_codes()), true)) {
-            echo json_encode(array('status' => false, 'message' => 'Invalid PBHP code.'));
+        $visit = $this->patientflow_model->get_visit($visit_id);
+        if (!$visit) {
+            echo json_encode(array('status' => false, 'message' => 'Visit not found.'));
             return;
+        }
+
+        // PBHP can only be created after the programme bill is generated.
+        if (empty($visit->has_programme_bill)) {
+            echo json_encode(array('status' => false, 'message' => 'Programme bill must be generated before creating a PBHP ID.'));
+            return;
+        }
+
+        // Derive the programme code from the visit's ct_programme_id column.
+        // ct_programme_id may hold either the programme primary key (numeric id)
+        // or the programme code; resolve it to the code either way.
+        $programme_ref = trim((string) ($visit->ct_programme_id ?? ''));
+        if ($programme_ref === '') {
+            echo json_encode(array('status' => false, 'message' => 'No programme is assigned to this visit. Please select a programme first.'));
+            return;
+        }
+
+        // Validate the programme exists in patient_flow_programme and use its code.
+        $programme_code = '';
+        if ($this->db->table_exists('patient_flow_programme')) {
+            // If the reference is numeric, treat it as the primary key (id).
+            if (ctype_digit($programme_ref)) {
+                $programme_row = $this->db->where('id', (int) $programme_ref)->get('patient_flow_programme')->row();
+            } else {
+                $programme_row = $this->db->where('code', $programme_ref)->get('patient_flow_programme')->row();
+            }
+            if (!$programme_row) {
+                echo json_encode(array('status' => false, 'message' => 'Programme "' . htmlspecialchars($programme_ref) . '" not found.'));
+                return;
+            }
+            $programme_code = trim((string) $programme_row->code);
+        } else {
+            // Table missing — use the reference directly as the code.
+            $programme_code = $programme_ref;
         }
 
         $role_id = null;
@@ -1011,7 +1070,7 @@ class Patientflow extends Admin_Controller
 
         $result = $this->patientflow_model->create_pbhp_id(
             $visit_id,
-            $code,
+            $programme_code,
             $this->customlib->getStaffID(),
             $role_id
         );
@@ -1408,7 +1467,7 @@ class Patientflow extends Admin_Controller
         }
 
         $invoice = null;
-        if ($this->db->field_exists('invoice_no', 'patient_flow_visits') && !empty($visit->invoice_no)) {
+        if ($this->db->table_exists('patient_flow_fee_invoice') && !empty($visit->invoice_no)) {
             $invoice = $this->db
                 ->where('invoice_type', 'PROGRAMME')
                 ->where('invoice_no', trim((string) $visit->invoice_no))
@@ -1419,6 +1478,7 @@ class Patientflow extends Admin_Controller
         if (!$invoice) {
             $this->session->set_flashdata('error_msg', 'Programme bill invoice not found for this visit.');
             redirect('admin/patientflow');
+            return;
         }
 
         $lines = $this->db->where('invoice_id', (int) $invoice->id)->get('patient_flow_fee_invoice_line')->result();
@@ -2203,6 +2263,20 @@ class Patientflow extends Admin_Controller
             $update['completed_by'] = $this->customlib->getStaffID();
         }
         $this->patientflow_model->update_visit($visit_id, $update);
+
+        // Free the token number when a visit is completed/cancelled so it can
+        // be reused by the next patient.
+        if (in_array($status, array('completed', 'cancelled'), true)
+            && !empty($visit->token_no)
+            && !in_array($visit->token_status, array('CLOSED', 'NO_SHOW', 'SKIPPED'), true)) {
+            $this->patientflow_model->set_token_status(
+                $visit_id,
+                'CLOSED',
+                $this->customlib->getStaffID(),
+                null,
+                'Visit set to ' . $status
+            );
+        }
 
         $this->session->set_flashdata('success_msg', 'Visit status updated to "' . ucfirst($status) . '".');
         redirect('admin/patientflow');
