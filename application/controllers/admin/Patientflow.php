@@ -346,6 +346,28 @@ class Patientflow extends Admin_Controller
             'created_by'          => $this->customlib->getStaffID(),
         ));
 
+        // Returning patient: carry over programme status and advance stage.
+        if ($existing_patient_id) {
+            $prior_visit = $this->patientflow_model->get_latest_visit_by_patient($patient_id, $visit_id);
+            if ($prior_visit) {
+                if (!empty($prior_visit->programme_status)) {
+                    $this->db->where('id', (int) $visit_id)->update('patient_flow_visits', array('programme_status' => $prior_visit->programme_status));
+                }
+                $prior_stage = $this->patientflow_model->get_stage_from_visit((int) $prior_visit->id);
+                $prior_stage_id = isset($prior_stage['stage_id']) ? (int) $prior_stage['stage_id'] : 0;
+                $next_stage = $this->patientflow_model->get_next_stage_after($prior_stage_id);
+                if ($next_stage) {
+                    $this->patientflow_model->set_stage_for_visit($visit_id, (int) $next_stage->id, (string) $next_stage->code);
+                }
+            }
+        } else {
+            // New patient: default to first stage.
+            $first_stage = $this->patientflow_model->get_next_stage_after(0);
+            if ($first_stage) {
+                $this->patientflow_model->set_stage_for_visit($visit_id, (int) $first_stage->id, (string) $first_stage->code);
+            }
+        }
+
         // 3) Create the core OPD record for this visit (same record the OPD
         //    module uses: case_reference + opd_details + visit_details + charge)
         //    and link its id to the flow visit. Nothing is collected here —

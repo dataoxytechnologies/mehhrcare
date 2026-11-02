@@ -57,12 +57,13 @@ class Fee_engine
                 'validity'        => (int) $a->validity_quarters,
                 'payment_mode'    => $a->payment_mode,
                 'category_code'   => $a->category_code,
+                'allow_stacking'  => 0,
             );
         }
 
         // --- Campaign candidates ---
         $camp_rows = $this->CI->db
-            ->select('dc.id, dc.campaign_code, dc.discount_percent, dc.benefit_quarters, dc.payment_mode, dc.status, dc.start_date, dc.end_date')
+            ->select('dc.id, dc.campaign_code, dc.discount_percent, dc.benefit_quarters, dc.payment_mode, dc.status, dc.start_date, dc.end_date, dc.allow_stacking')
             ->from('patient_flow_discount_campaign dc')
             ->where('dc.status', 'APPROVED')
             ->where('dc.start_date <=', $enrolled_on)
@@ -98,20 +99,51 @@ class Fee_engine
                 'validity'        => (int) $c->benefit_quarters,
                 'payment_mode'    => $c->payment_mode,
                 'campaign_code'   => $c->campaign_code,
+                'allow_stacking'  => ((int) ($c->allow_stacking ?? 0) === 1) ? 1 : 0,
             );
         }
 
-        // Non-stackable: highest single percentage wins. Assistance wins tie.
-        usort($candidates, function ($a, $b) {
-            if ($b['percent'] === $a['percent']) {
-                return ($a['source'] === 'ASSISTANCE') ? -1 : 1;
+        $stacking_allowed = false;
+        foreach ($candidates as $candidate) {
+            if (!empty($candidate['allow_stacking'])) {
+                $stacking_allowed = true;
+                break;
             }
-            return ($b['percent'] <=> $a['percent']);
-        });
+        }
 
+        // Default rule: one benefit only. If a campaign explicitly allows stacking,
+        // combine the eligible percentages up to 100%. The underlying schedule table
+        // still stores a single source row, so the highest-priority source remains the
+        // record owner while candidates_json preserves the full list for audit.
         $winner = null;
         if (!empty($candidates)) {
-            $winner = $candidates[0];
+            if ($stacking_allowed) {
+                $combined = 0.0;
+                $primary = null;
+                foreach ($candidates as $candidate) {
+                    $combined += (float) $candidate['percent'];
+                    if ($primary === null || (float) $candidate['percent'] > (float) $primary['percent']) {
+                        $primary = $candidate;
+                    } elseif ((float) $candidate['percent'] === (float) $primary['percent']
+                        && $candidate['source'] === 'ASSISTANCE') {
+                        $primary = $candidate;
+                    }
+                }
+
+                $winner = $primary;
+                $winner['percent'] = min(100.0, (float) $combined);
+                $winner['validity'] = max(array_map(function ($candidate) {
+                    return (int) ($candidate['validity'] ?? 1);
+                }, $candidates));
+            } else {
+                usort($candidates, function ($a, $b) {
+                    if ($b['percent'] === $a['percent']) {
+                        return ($a['source'] === 'ASSISTANCE') ? -1 : 1;
+                    }
+                    return ($b['percent'] <=> $a['percent']);
+                });
+                $winner = $candidates[0];
+            }
         }
 
         $result = array(
@@ -162,29 +194,67 @@ class Fee_engine
         $payment_mode = $benefit['payment_mode'] ?? 'MILESTONE';
         $rows = array();
 
-        // --- Q1: two milestones (INITIAL + REMAINING) ---
+        $norm_milestones = array();
+        foreach ((array) $milestones as $m) {
+            $norm_milestones[] = is_array($m) ? $m : (array) $m;
+        }
+
+        $norm_stages = array();
+        foreach ((array) $stages as $s) {
+            $norm_stages[] = is_array($s) ? $s : (array) $s;
+        }
+
+        // --- Q1: use the stage-allocation values required by the fee table, unless no stage data is defined. ---
         if ($quarter_no === 1) {
+            $has_stage_allocation = false;
+            foreach ($norm_stages as $s) {
+                if ((float) ($s['standard_amount'] ?? 0) > 0) {
+                    $has_stage_allocation = true;
+                    break;
+                }
+            }
+
+            if ($has_stage_allocation) {
+                $seq = 1;
+                foreach ($norm_stages as $s) {
+                    $standard = (float) ($s['standard_amount'] ?? 0);
+                    if ($standard <= 0) {
+                        continue;
+                    }
+
+                    $stage_id = (int) ($s['id'] ?? $s['stage_id'] ?? 0);
+                    $disc_amount = 0.0;
+                    $payable = $standard;
+                    if ($discount > 0) {
+                        $disc_amount = (float) round($standard * $discount / 100);
+                        $payable = (float) round($standard - $disc_amount);
+                    }
+
+                    $rows[] = $this->_schedule_row($enrollment_id, 1, $seq, 'STAGE', null, $stage_id, $stage_id, $standard, $discount, $disc_amount, $payable, $benefit['source_id'] ?? null, 'PENDING');
+                    $seq++;
+                }
+                return $rows;
+            }
+
             $initial = null;
             $remaining = null;
-            foreach ($milestones as $m) {
-                if ($m['milestone_code'] === 'Q1_INITIAL') {
+            foreach ($norm_milestones as $m) {
+                if (($m['milestone_code'] ?? null) === 'Q1_INITIAL') {
                     $initial = $m;
                 }
-                if ($m['milestone_code'] === 'Q1_REMAINING') {
+                if (($m['milestone_code'] ?? null) === 'Q1_REMAINING') {
                     $remaining = $m;
                 }
             }
 
-            // Q1_INITIAL - no discount
             if ($initial) {
-                $rows[] = $this->_schedule_row($enrollment_id, 1, 1, 'MILESTONE', 'Q1_INITIAL', null, null, $initial['amount'], 0, 0, $initial['amount'], $benefit['source_id'], 'PENDING');
+                $rows[] = $this->_schedule_row($enrollment_id, 1, 1, 'MILESTONE', 'Q1_INITIAL', null, null, $initial['amount'], 0, 0, $initial['amount'], $benefit['source_id'] ?? null, 'PENDING');
             }
 
-            // Q1_REMAINING - applies discount
             if ($remaining) {
                 $disc_amount = (int) round($remaining['amount'] * $discount / 100);
                 $payable = (int) round($remaining['amount'] - $disc_amount);
-                $rows[] = $this->_schedule_row($enrollment_id, 1, 2, 'MILESTONE', 'Q1_REMAINING', null, null, $remaining['amount'], $discount, $disc_amount, $payable, $benefit['source_id'], 'PENDING');
+                $rows[] = $this->_schedule_row($enrollment_id, 1, 2, 'MILESTONE', 'Q1_REMAINING', null, null, $remaining['amount'], $discount, $disc_amount, $payable, $benefit['source_id'] ?? null, 'PENDING');
             }
         }
         // --- Q2+ ---
@@ -192,14 +262,14 @@ class Fee_engine
             // No benefit: single milestone
             if ($benefit['source'] === null || $discount <= 0) {
                 $milestone = null;
-                foreach ($milestones as $m) {
-                    if ($m['milestone_code'] === 'LATER_QUARTER') {
+                foreach ($norm_milestones as $m) {
+                    if (($m['milestone_code'] ?? null) === 'LATER_QUARTER') {
                         $milestone = $m;
                         break;
                     }
                 }
                 if (!$milestone) {
-                    $milestone = end($milestones);
+                    $milestone = end($norm_milestones);
                 }
                 if ($milestone) {
                     $rows[] = $this->_schedule_row($enrollment_id, $quarter_no, 1, 'MILESTONE', $milestone['milestone_code'], null, null, $milestone['amount'], 0, 0, $milestone['amount'], null, 'PENDING');
@@ -209,12 +279,13 @@ class Fee_engine
             else {
                 $split = $this->split_later_quarter($quarter_fee, $discount);
                 $seq = 1;
-                foreach ($stages as $s) {
+                foreach ($norm_stages as $s) {
                     if ($seq > 3) {
                         break;
                     }
                     $stage_amount = (isset($split[$seq - 1])) ? (int) $split[$seq - 1] : 0;
-                    $rows[] = $this->_schedule_row($enrollment_id, $quarter_no, $seq, 'STAGE', null, (int) $s['id'], (int) $s['id'], $stage_amount, $discount, (int) round($stage_amount * $discount / 100), $stage_amount, $benefit['source_id'], 'PENDING');
+                    $stage_id = (int) ($s['id'] ?? 0);
+                    $rows[] = $this->_schedule_row($enrollment_id, $quarter_no, $seq, 'STAGE', null, $stage_id, $stage_id, $stage_amount, $discount, (int) round($stage_amount * $discount / 100), $stage_amount, $benefit['source_id'], 'PENDING');
                     $seq++;
                 }
             }

@@ -6889,4 +6889,22 @@ class Patientflow_model extends CI_Model
         return $this->get_pending_payment_schedule_rows($enrollment_id, $stage_id);
     }
 
+    public function get_latest_visit_by_patient($patient_id, $exclude_visit_id = null)
+    {
+        if (!$this->db->table_exists('patient_flow_visits')) return null;
+        $this->db->where('patient_id', (int) $patient_id);
+        if ($exclude_visit_id) $this->db->where('id !=', (int) $exclude_visit_id);
+        $this->db->order_by('id', 'desc');
+        return $this->db->get('patient_flow_visits')->row();
+    }
+    public function get_next_stage_after($stage_id)
+    {
+        if (!$this->db->table_exists('stage_master')) return null;
+        $current = $this->db->where('id', (int) $stage_id)->get('stage_master')->row();
+        if (!$current) {
+            return $this->db->order_by('sort_order', 'asc')->order_by('id', 'asc')->get('stage_master')->row();
+        }
+        $next = $this->db->where('sort_order >', (int) $current->sort_order)->order_by('sort_order', 'asc')->order_by('id', 'asc')->get('stage_master')->row();
+        return $next ? $next : $current;
+    }
 }
