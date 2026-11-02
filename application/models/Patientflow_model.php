@@ -1905,6 +1905,10 @@ class Patientflow_model extends CI_Model
 
         $token_no = !empty($visit->token_no) ? $visit->token_no : $this->generate_token_no();
 
+        if ($token_no === null) {
+            return array('status' => false, 'message' => 'All 50 token numbers are currently in use. Close an existing token first.');
+        }
+
         if ($visit->token_status !== 'NOT_ISSUED' && !empty($visit->token_status) && $visit->token_status !== 'CLOSED') {
             return array('status' => false, 'message' => 'Token "' . $token_no . '" is already ' . $visit->token_status . '.');
         }
@@ -2123,22 +2127,60 @@ class Patientflow_model extends CI_Model
         return array('status' => true, 'message' => 'PBHP ID created.', 'pbhp_id' => $pbhp_id);
     }
 
+    /**
+     * Return the token numbers (1-50) currently occupied by live tokens.
+     * A number is "occupied" only while the visit holds a token_no and the
+     * token_status is a live (non-terminal) queue state. Terminal/released
+     * states (CLOSED, NO_SHOW, SKIPPED) do not occupy a number so it can be
+     * reused by the next patient.
+     *
+     * @return int[] e.g. [1, 3, 7]
+     */
+    public function get_occupied_token_numbers()
+    {
+        $live_statuses = array(
+            'NOT_ISSUED',
+            'ACTIVE',
+            'WAITING',
+            'CALLED',
+            'IN_PROCESS',
+            'WAITING_SECOND_CALL',
+        );
+
+        $this->db->select('token_no');
+        $this->db->from('patient_flow_visits');
+        $this->db->where_in('token_status', $live_statuses);
+        $this->db->where('token_no IS NOT NULL');
+        $this->db->where('token_no !=', '');
+        $rows = $this->db->get()->result();
+
+        $occupied = array();
+        foreach ($rows as $row) {
+            $token_no = trim((string) $row->token_no);
+            if (str_starts_with($token_no, 'T-')) {
+                $num = intval(substr($token_no, 2));
+                if ($num >= 1 && $num <= 50) {
+                    $occupied[$num] = true;
+                }
+            }
+        }
+
+        return array_keys($occupied);
+    }
+
     public function generate_token_no()
     {
         $prefix = 'T-';
-        $this->db->select('token_no');
-        $this->db->from('patient_flow_visits');
-        $this->db->like('token_no', $prefix, 'after');
-        $this->db->order_by('id', 'desc');
-        $this->db->limit(1);
-        $row = $this->db->get()->row();
+        $occupied = $this->get_occupied_token_numbers();
 
-        $seq = 1;
-        if ($row) {
-            $parts = explode('-', $row->token_no);
-            $seq = intval(end($parts)) + 1;
+        for ($num = 1; $num <= 50; $num++) {
+            if (!in_array($num, $occupied, true)) {
+                return $prefix . str_pad($num, 3, '0', STR_PAD_LEFT);
+            }
         }
-        return $prefix . str_pad($seq, 3, '0', STR_PAD_LEFT);
+
+        // All 50 token numbers are currently in use.
+        return null;
     }
 
     // ============================================================
@@ -2278,6 +2320,8 @@ class Patientflow_model extends CI_Model
         }
         if (in_array($new_status, array('CLOSED', 'NO_SHOW', 'SKIPPED'), true)) {
             $data['token_closed_at'] = date('Y-m-d H:i:s');
+            // Release the token number so it can be reused by the next patient.
+            $data['token_no'] = null;
         } elseif ($new_status === 'WAITING') {
             // Re-queueing from NO_SHOW / SKIPPED clears the close stamp.
             $data['token_closed_at'] = null;
@@ -2621,19 +2665,29 @@ class Patientflow_model extends CI_Model
         $this->db->trans_start();
         $this->db->trans_strict(false);
 
-        $this->db->where('id', $visit_id);
-        $this->db->update('patient_flow_visits', array(
+        $update = array(
             'status'       => 'completed',
             'completed_at' => date('Y-m-d H:i:s'),
             'completed_by' => $staff_id,
-        ));
+        );
+
+        // Free the token number when the visit completes so it can be reused.
+        $terminal_token_statuses = array('CLOSED', 'NO_SHOW', 'SKIPPED');
+        if (!empty($visit->token_no) && !in_array($visit->token_status, $terminal_token_statuses, true)) {
+            $update['token_status']    = 'CLOSED';
+            $update['token_closed_at'] = date('Y-m-d H:i:s');
+            $update['token_no']        = null;
+        }
+
+        $this->db->where('id', $visit_id);
+        $this->db->update('patient_flow_visits', $update);
 
         $this->db->insert('patient_flow_visit_logs', array(
             'visit_id'      => $visit_id,
             'from_level_id' => $visit->current_level_id,
             'to_level_id'   => $visit->current_level_id,
             'action'        => 'complete',
-            'remarks'       => $remarks,
+            'remarks'       => $remarks . (!empty($visit->token_no) ? ' | Token ' . $visit->token_no . ' closed and released.' : ''),
             'acted_by'      => $staff_id,
             'acted_role_id' => $role_id,
         ));

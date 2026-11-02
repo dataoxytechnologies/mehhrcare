@@ -504,7 +504,7 @@ if (!function_exists('pf_ct_age_label')) {
                                     <?php } ?>
                                 </td>
                                 <td class="align-middle text-end text-nowrap">
-                                    <?php if (!empty($pf_can_create_pbhp) && !empty($v->level_can_create_pbhp) && $pf_programme === 'enroll' && empty($v->pbhp_id)) { ?>
+                                     <?php if (!empty($pf_can_create_pbhp) && !empty($v->level_can_create_pbhp) && $pf_programme === 'enroll' && empty($v->pbhp_id) && !empty($v->has_programme_bill)) { ?>
                                     <a href="javascript:void(0)"
                                        class="btn btn-sm btn-outline-secondary w-100 mb-1 pf-pbhp-create" data-bs-toggle="tooltip"
                                        data-visit="<?php echo $v->id; ?>"
@@ -513,7 +513,7 @@ if (!function_exists('pf_ct_age_label')) {
                                         <i class="fa fa-id-card-o"></i> &nbsp;<?php echo $this->lang->line('create_pbhp_id') ?: 'Create PBHP ID'; ?>
                                     </a>
                                     <?php } ?>
-                                    <?php if (!empty($pf_can_generate_token) && $pf_paid && empty($v->token_no)) { ?>
+                                    <?php if (!empty($pf_can_generate_token) && empty($v->token_no)) { ?>
                                     <a href="<?php echo site_url('admin/patientflow/generate_token/' . $v->id); ?>"
                                        class="btn btn-sm btn-outline-info w-100 mb-1" data-bs-toggle="tooltip"
                                        title="<?php echo $this->lang->line('generate_token') ?: 'Generate Token'; ?>">
@@ -597,7 +597,7 @@ if (!function_exists('pf_ct_age_label')) {
                                          <i class="fa fa-print"></i> &nbsp;<?php echo $pf_paid ? ($this->lang->line('print_invoice') ?: 'Print Invoice') : ($this->lang->line('print_billing_ref') ?: 'Print Billing Ref'); ?>
                                      </a>
                                      <?php } ?>
-                                     <?php if (!empty($v->invoice_no)) { ?>
+                                     <?php if (!empty($v->has_programme_bill)) { ?>
                                      <a href="<?php echo site_url('admin/patientflow/print_programme_bill/' . $v->id); ?>" target="_blank"
                                         class="btn btn-sm btn-outline-warning w-100 mb-1" data-bs-toggle="tooltip"
                                         title="Print Programme Bill">
@@ -611,7 +611,7 @@ if (!function_exists('pf_ct_age_label')) {
                                          <i class="fas fa-vial"></i> &nbsp;<?php echo $this->lang->line('print_vial_label') ?: 'Print Vial Label'; ?>
                                      </a>
                                      <?php } ?>
-                                     <?php if (!empty($v->level_generate_bill) && $pf_owned) { ?>
+                                     <?php if (!empty($v->level_generate_bill) && $pf_owned && $pf_programme === 'enroll') { ?>
                                      <button type="button" class="btn btn-primary btn-sm generatebill w-100 mb-1"
                                              data-visit-id="<?php echo (int) $v->id; ?>"
                                              data-patient-id="<?php echo (int) $v->patient_id; ?>"
@@ -703,14 +703,14 @@ if (!function_exists('pf_ct_age_label')) {
                                       </button>
                                       <?php } ?>
                                       <?php if (!empty($v->ct_programme_id)) { ?>
-                                      <button type="button"
+                                      <!-- <button type="button"
                                               class="btn btn-sm btn-outline-warning w-100 mb-1 pf-programme-btn"
                                               data-bs-toggle="tooltip"
                                               data-visit="<?php echo (int) $v->id; ?>"
                                               data-patient="<?php echo addslashes((string) $v->patient_name); ?>"
                                               title="<?php echo $this->lang->line('programme') ?: 'Programme'; ?>">
                                            <i class="fa fa-briefcase"></i> &nbsp;<?php echo $this->lang->line('programme') ?: 'Programme'; ?>
-                                      </button>
+                                      </button> -->
                                       <?php } ?>
                                      <?php if ($this->rbac->hasPrivilege('patient_flow', 'can_delete')) { ?>
                                      <form method="post" action="<?php echo site_url('admin/patientflow/delete_visit/' . $v->id); ?>" class="mt-1" onsubmit="return confirm('Delete this patient flow visit? This cannot be undone.');">
@@ -1621,10 +1621,18 @@ $(document).on('click', '.pf-token-edit', function () {
     }
 
     // A token exists — show the selectbox populated with ALL statuses at once.
+    // Options that are not valid transitions from the current status are disabled.
     $('#pf_ts_status_wrap').removeClass('d-none');
     $sel.append($('<option/>', { value: '', text: '<?php echo $this->lang->line('select') ?: 'Select'; ?>' }));
     $.each(PF_TOKEN_ALL, function (i, opt) {
-        $sel.append($('<option/>', { value: opt, text: PF_TOKEN_LABELS[opt] || opt, selected: (opt === status) }));
+        var allowed = PF_TOKEN_TRANSITIONS[status] || [];
+        var isAllowed = allowed.indexOf(opt) !== -1;
+        $sel.append($('<option/>', {
+            value:   opt,
+            text:    PF_TOKEN_LABELS[opt] || opt,
+            selected:(opt === status),
+            disabled:!isAllowed
+        }));
     });
 
     // Legacy warning notices (kept as-is) — the selectbox is still populated.
@@ -1761,15 +1769,9 @@ $(document).on('click', '#pf_pg_save', function () {
             <div class="modal-body">
                 <input type="hidden" id="pf_pbhp_visit_id" value="">
                 <p class="mb-2 text-muted small" id="pf_pbhp_patient"></p>
-                <div class="form-group">
-                    <label class="form-label form-label-sm"><?php echo $this->lang->line('pbhp_code') ?: 'PBHP Code'; ?> <small class="req"> *</small></label>
-                    <select class="form-control" id="pf_pbhp_code">
-                        <option value=""><?php echo $this->lang->line('select') ?: 'Select'; ?></option>
-                        <?php foreach ($pbhp_codes as $pbhp_label => $pbhp_code) { ?>
-                        <option value="<?php echo $pbhp_code; ?>"><?php echo $pbhp_label . ' (' . $pbhp_code . ')'; ?></option>
-                        <?php } ?>
-                    </select>
-                </div>
+                <p class="text-muted small">
+                    <?php echo $this->lang->line('pbhp_programme_notice') ?: 'The PBHP ID will be generated from the visit\'s assigned programme code.'; ?>
+                </p>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">
@@ -1792,7 +1794,6 @@ $(document).on('click', '.pf-pbhp-create', function () {
 
     $('#pf_pbhp_visit_id').val($(this).data('visit'));
     $('#pf_pbhp_patient').text($(this).data('patient') || '');
-    $('#pf_pbhp_code').val('');
 
     var modalEl = document.getElementById('pfPbhpModal');
     bootstrap.Modal.getOrCreateInstance(modalEl).show();
@@ -1800,15 +1801,14 @@ $(document).on('click', '.pf-pbhp-create', function () {
 
 $(document).on('click', '#pf_pbhp_save', function () {
     var visitId = $('#pf_pbhp_visit_id').val();
-    var code    = $('#pf_pbhp_code').val();
-    if (!visitId || !code) {
-        errorMsg('<?php echo $this->lang->line('select_pbhp_code_first') ?: 'Please select a PBHP code first.'; ?>');
+    if (!visitId) {
+        errorMsg('<?php echo $this->lang->line('select_pbhp_code_first') ?: 'Please select a programme first.'; ?>');
         return;
     }
 
     var $btn = $(this).prop('disabled', true);
     $.post('<?php echo site_url('admin/patientflow/create_pbhp'); ?>',
-        { visit_id: visitId, pbhp_code: code },
+        { visit_id: visitId },
         function (response) {
             $btn.prop('disabled', false);
             if (response.status) {
