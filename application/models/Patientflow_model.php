@@ -131,6 +131,10 @@ class Patientflow_model extends CI_Model
             if (!$this->db->field_exists('generate_bill', 'patient_flow_levels')) {
                 $this->db->query("ALTER TABLE `patient_flow_levels` ADD COLUMN `generate_bill` TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'staff owning this level may generate bills' AFTER `print_vial`");
             }
+            // 10) Generate and print pharmacy bill permission
+            if (!$this->db->field_exists('can_generate_pharmacy_bill', 'patient_flow_levels')) {
+                $this->db->query("ALTER TABLE `patient_flow_levels` ADD COLUMN `can_generate_pharmacy_bill` TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'staff owning this level may generate and print pharmacy bills' AFTER `generate_bill`");
+            }
         }
         // 6) Level permission: staff whose role owns a level with this flag
         //    may generate an invoice number for a visit.
@@ -1257,7 +1261,8 @@ class Patientflow_model extends CI_Model
                            l.code AS level_code, l.title AS level_title, l.counter_type AS level_counter, l.level_no AS level_no,
                            l.can_change_payment AS level_can_change_payment, l.can_cash_received AS level_can_cash_received,
                            l.can_change_status AS level_can_change_status, l.can_change_programme_status AS level_can_change_programme_status,
-                           l.can_generate_invoice AS level_can_generate_invoice, l.can_case_taking AS level_can_case_taking, l.can_view_case_taking AS level_can_view_case_taking,
+                           l.can_generate_invoice AS level_can_generate_invoice, l.can_generate_pharmacy_bill AS level_can_generate_pharmacy_bill,
+                           l.can_case_taking AS level_can_case_taking, l.can_view_case_taking AS level_can_view_case_taking,
                            l.can_prescribe_medicine AS level_can_prescribe_medicine, l.print_vial AS level_print_vial, l.generate_bill AS level_generate_bill,
                            pl.code AS next_code, pl.title AS next_title, pl.id AS next_level_id,
                            pv.id AS prev_level_id, pv.code AS prev_code, pv.title AS prev_title,
@@ -1298,7 +1303,8 @@ class Patientflow_model extends CI_Model
                            l.code AS level_code, l.title AS level_title, l.counter_type AS level_counter, l.level_no AS level_no, l.can_approve AS level_can_approve,
                            l.can_generate_billing_ref AS level_can_generate_billing_ref, l.can_print_billing AS level_can_print_billing, l.can_change_status AS level_can_change_status,
                            l.can_change_payment AS level_can_change_payment, l.can_cash_received AS level_can_cash_received, l.can_change_programme_status AS level_can_change_programme_status,
-                           l.can_create_pbhp_id AS level_can_create_pbhp, l.can_generate_invoice AS level_can_generate_invoice, l.can_case_taking AS level_can_case_taking, l.can_view_case_taking AS level_can_view_case_taking,
+                           l.can_create_pbhp_id AS level_can_create_pbhp, l.can_generate_invoice AS level_can_generate_invoice, l.can_generate_pharmacy_bill AS level_can_generate_pharmacy_bill,
+                           l.can_case_taking AS level_can_case_taking, l.can_view_case_taking AS level_can_view_case_taking,
                            l.can_prescribe_medicine AS level_can_prescribe_medicine, l.print_vial AS level_print_vial, l.generate_bill AS level_generate_bill,
                            pl.code AS next_code, pl.title AS next_title, pl.id AS next_level_id,
                            pv.id AS prev_level_id, pv.code AS prev_code, pv.title AS prev_title,
@@ -1678,27 +1684,6 @@ class Patientflow_model extends CI_Model
         $this->db->update('patient_flow_visits', array(
             'cash_received' => $received,
         ));
-
-        // Deduct stock from pharmacy for all prescribed medicines when cash is received
-        if ($received == 1) {
-            $prescriptions = $this->db->where('visit_id', $visit_id)
-                ->where('is_active', 1)
-                ->where('stock_deducted', 0)
-                ->get('patient_flow_prescription')
-                ->result_array();
-
-            foreach ($prescriptions as $presc) {
-                $medicine_id = (int) $presc['medicine_id'];
-                $med = $this->db->where('id', $medicine_id)->get('medicine_master')->row();
-                if (!$med || !$med->pharmacy_id || (float) ($med->stock_deduction_ml ?? 0) <= 0) {
-                    continue;
-                }
-                $stockResult = $this->deduct_stock_for_medicine($medicine_id);
-                if ($stockResult['status']) {
-                    $this->db->where('id', $presc['id'])->update('patient_flow_prescription', array('stock_deducted' => 1));
-                }
-            }
-        }
 
         $this->add_log(array(
             'visit_id'      => $visit_id,
@@ -5465,6 +5450,61 @@ class Patientflow_model extends CI_Model
     }
 
     /**
+     * Dispense a prescribed medicine — deduct stock from pharmacy batches
+     * and mark the prescription as dispensed.
+     *
+     * @param int $prescription_id patient_flow_prescription.id
+     * @param int $staff_id staff who dispensed
+     * @return array ['status'=>bool, 'message'=>string]
+     */
+    public function dispense_medicine($prescription_id, $staff_id)
+    {
+        if (!$this->db->table_exists('patient_flow_prescription')) {
+            return array('status' => false, 'message' => 'Prescription table not found.');
+        }
+
+        $prescription_id = (int) $prescription_id;
+        $staff_id = (int) $staff_id;
+
+        $presc = $this->db->where('id', $prescription_id)
+            ->where('is_active', 1)
+            ->get('patient_flow_prescription')
+            ->row();
+        if (!$presc) {
+            return array('status' => false, 'message' => 'Active prescription not found.');
+        }
+
+        if ((int) $presc->stock_deducted === 1) {
+            return array('status' => false, 'message' => 'Medicine already dispensed.');
+        }
+
+        $medicine_id = (int) $presc->medicine_id;
+        $med = $this->db->where('id', $medicine_id)->get('medicine_master')->row();
+        if (!$med || !$med->pharmacy_id) {
+            return array('status' => false, 'message' => 'Medicine not linked to pharmacy.');
+        }
+
+        $stock_deduction_ml = (float) ($med->stock_deduction_ml ?: 0);
+        if ($stock_deduction_ml <= 0) {
+            return array('status' => false, 'message' => 'No stock deduction quantity configured.');
+        }
+
+        $stockResult = $this->deduct_stock_for_medicine($medicine_id);
+        if (!$stockResult['status']) {
+            return $stockResult;
+        }
+
+        $this->db->where('id', $prescription_id)
+            ->update('patient_flow_prescription', array(
+                'stock_deducted' => 1,
+                'dispensed_at'   => date('Y-m-d H:i:s'),
+                'dispensed_by'   => $staff_id,
+            ));
+
+        return array('status' => true, 'message' => 'Medicine dispensed and stock deducted.');
+    }
+
+    /**
      * Bulk save multiple medicines as prescriptions for a visit.
      * Skips medicines already prescribed for this visit (avoid duplicates).
      */
@@ -5758,6 +5798,9 @@ class Patientflow_model extends CI_Model
                 'fx_second_senior_approval' => (int) $r->fx_second_senior_approval,
                 'fx_approved_by' => isset($r->fx_approved_by) ? (int) $r->fx_approved_by : null,
                 'name_hidden' => (int) $r->name_hidden, 'is_active' => (int) $r->is_active,
+                'stock_deducted' => (int) ($r->stock_deducted ?? 0),
+                'dispensed_at' => isset($r->dispensed_at) ? (string) $r->dispensed_at : null,
+                'dispensed_by' => isset($r->dispensed_by) ? (int) $r->dispensed_by : null,
                 'is_orderable' => (int) $is_orderable,
             );
         }
