@@ -290,8 +290,9 @@ if (!function_exists('pf_ct_age_label')) {
                     <th><?php echo $this->lang->line('token') ?: 'Token'; ?></th>
                     <th><?php echo $this->lang->line('patient'); ?></th>
                     <th><?php echo $this->lang->line('pbhp_id'); ?></th>
-                    <th class="text-center"><?php echo $this->lang->line('current_level'); ?></th>
-                    <th><?php echo $this->lang->line('payment'); ?></th>
+<th class="text-center"><?php echo $this->lang->line('current_level'); ?></th>
+<th class="text-center"><?php echo $this->lang->line('stage') ?: 'Stage'; ?></th>
+<th><?php echo $this->lang->line('payment'); ?></th>
                     <th><?php echo $this->lang->line('programme_status') ?: 'Programme Status'; ?></th>
                     <th><?php echo $this->lang->line('programme_name') ?: 'Programme'; ?></th>
                     <th class="text-center"><?php echo $this->lang->line('approval_status') ?: 'Approval'; ?></th>
@@ -362,7 +363,7 @@ if (!function_exists('pf_ct_age_label')) {
                                         <span class="">UID: <?php echo htmlspecialchars($v->patient_uuid); ?></span>
                                     </div>
                                     <?php } ?>
-                                    <strong><?php echo $v->patient_name; ?></strong>
+                                    <strong><?php echo $v->patient_name .' ('. $v->patient_id .')'; ?></strong>
                                     <div class="small text-muted">
                                         <?php
                                         echo ($v->gender ? $v->gender . ' · ' : '') . ($v->age ? $v->age . 'Y' : '');
@@ -376,6 +377,11 @@ if (!function_exists('pf_ct_age_label')) {
                                         <?php echo $v->level_code ? $v->level_code : '—'; ?>
                                     </span>
                                     <div class="small text-muted"><?php echo $v->level_title; ?></div>
+                                </td>
+                                <td class="align-middle text-center">
+                                    <span class="badge bg-secondary-subtle text-secondary-emphasis">
+                                        <?php echo !empty($v->stage_code) ? htmlspecialchars($v->stage_code) : '—'; ?>
+                                    </span>
                                 </td>
                                 <td class="align-middle">
                                     <?php

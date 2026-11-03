@@ -182,6 +182,18 @@ class Patientflow extends Admin_Controller
             }
         }
 
+        // Batch-load current stage for each visit so the board can show it.
+        if (!empty($data['visits']) && $this->db->table_exists('patient_flow_stage_assignment')) {
+            $visit_ids = array();
+            foreach ($data['visits'] as $vv) {
+                $visit_ids[] = (int) $vv->id;
+            }
+            $stages = $this->patientflow_model->get_stages_for_visits($visit_ids);
+            foreach ($data['visits'] as $vv) {
+                $vv->stage_code = isset($stages[(int) $vv->id]['stage_code']) ? $stages[(int) $vv->id]['stage_code'] : null;
+            }
+        }
+
         // Filter dropdown: own levels for staff, all levels for superadmin.
         $data['levels']            = $ctx['allowed_level_ids'] === null ? $this->patientflow_model->get_chain() : $ctx['my_levels'];
         $data['filter_level']      = $filter_level;
@@ -372,19 +384,26 @@ class Patientflow extends Admin_Controller
             'created_by'          => $this->customlib->getStaffID(),
         ));
 
-        // Returning patient: carry over programme status and advance stage.
-        if ($existing_patient_id) {
-            $prior_visit = $this->patientflow_model->get_latest_visit_by_patient($patient_id, $visit_id);
-            if ($prior_visit) {
-                if (!empty($prior_visit->programme_status)) {
-                    $this->db->where('id', (int) $visit_id)->update('patient_flow_visits', array('programme_status' => $prior_visit->programme_status));
-                }
-                $prior_stage = $this->patientflow_model->get_stage_from_visit((int) $prior_visit->id);
-                $prior_stage_id = isset($prior_stage['stage_id']) ? (int) $prior_stage['stage_id'] : 0;
-                $next_stage = $this->patientflow_model->get_next_stage_after($prior_stage_id);
-                if ($next_stage) {
-                    $this->patientflow_model->set_stage_for_visit($visit_id, (int) $next_stage->id, (string) $next_stage->code);
-                }
+        // Carry over programme status and advance stage for returning patients.
+        // Check for prior visits directly by patient_id (always set) rather than
+        // relying on name+mobile matching, so the logic works even if the
+        // register form was submitted with slightly different details.
+        $prior_visit = $this->patientflow_model->get_latest_visit_by_patient((int) $patient_id, $visit_id);
+        if ($prior_visit) {
+            if (!empty($prior_visit->programme_status)) {
+                $this->db->where('id', (int) $visit_id)->update('patient_flow_visits', array('programme_status' => $prior_visit->programme_status));
+            }
+            $prior_stage = $this->patientflow_model->get_stage_from_visit((int) $prior_visit->id);
+            $prior_stage_id = isset($prior_stage['stage_id']) ? (int) $prior_stage['stage_id'] : 0;
+            $next_stage = $this->patientflow_model->get_next_stage_after($prior_stage_id);
+            if ($next_stage) {
+                $this->patientflow_model->set_stage_for_visit($visit_id, (int) $next_stage->id, (string) $next_stage->code);
+            }
+            // Carry over the patient's latest PBHP ID to the new visit.
+            $prior_pbhp = $this->patientflow_model->get_latest_pbhp_id_for_patient((int) $patient_id);
+            if ($prior_pbhp) {
+                $this->db->where('id', (int) $visit_id)
+                         ->update('patient_flow_visits', array('pbhp_id' => $prior_pbhp));
             }
         } else {
             // New patient: default to first stage.
@@ -2133,6 +2152,32 @@ class Patientflow extends Admin_Controller
             $this->patientflow_model->sync_visit_amount_from_opd($visit_id);
         }
 
+        // Carry over programme status and advance stage for returning patients.
+        $prior_visit = $this->patientflow_model->get_latest_visit_by_patient((int) $patient_id, $visit_id);
+        if ($prior_visit) {
+            if (!empty($prior_visit->programme_status)) {
+                $this->db->where('id', (int) $visit_id)->update('patient_flow_visits', array('programme_status' => $prior_visit->programme_status));
+            }
+            $prior_stage = $this->patientflow_model->get_stage_from_visit((int) $prior_visit->id);
+            $prior_stage_id = isset($prior_stage['stage_id']) ? (int) $prior_stage['stage_id'] : 0;
+            $next_stage = $this->patientflow_model->get_next_stage_after($prior_stage_id);
+            if ($next_stage) {
+                $this->patientflow_model->set_stage_for_visit($visit_id, (int) $next_stage->id, (string) $next_stage->code);
+            }
+            // Carry over the patient's latest PBHP ID to the new visit.
+            $prior_pbhp = $this->patientflow_model->get_latest_pbhp_id_for_patient((int) $patient_id);
+            if ($prior_pbhp) {
+                $this->db->where('id', (int) $visit_id)
+                         ->update('patient_flow_visits', array('pbhp_id' => $prior_pbhp));
+            }
+        } else {
+            // New patient: default to first stage.
+            $first_stage = $this->patientflow_model->get_next_stage_after(0);
+            if ($first_stage) {
+                $this->patientflow_model->set_stage_for_visit($visit_id, (int) $first_stage->id, (string) $first_stage->code);
+            }
+        }
+
         $this->patientflow_model->add_log(array(
             'visit_id'    => $visit_id,
             'to_level_id' => $first_level->id,
@@ -2228,6 +2273,33 @@ class Patientflow extends Admin_Controller
                 'payment_status'        => 'pending',
                 'created_by'            => $this->customlib->getStaffID(),
             ));
+
+            // Carry over programme status and advance stage for returning patients.
+            $prior_visit = $this->patientflow_model->get_latest_visit_by_patient((int) $patient_id, $visit_id);
+            if ($prior_visit) {
+                if (!empty($prior_visit->programme_status)) {
+                    $this->db->where('id', (int) $visit_id)->update('patient_flow_visits', array('programme_status' => $prior_visit->programme_status));
+                }
+                $prior_stage = $this->patientflow_model->get_stage_from_visit((int) $prior_visit->id);
+                $prior_stage_id = isset($prior_stage['stage_id']) ? (int) $prior_stage['stage_id'] : 0;
+                $next_stage = $this->patientflow_model->get_next_stage_after($prior_stage_id);
+                if ($next_stage) {
+                    $this->patientflow_model->set_stage_for_visit($visit_id, (int) $next_stage->id, (string) $next_stage->code);
+                }
+                // Carry over the patient's latest PBHP ID to the new visit.
+                $prior_pbhp = $this->patientflow_model->get_latest_pbhp_id_for_patient((int) $patient_id);
+                if ($prior_pbhp) {
+                    $this->db->where('id', (int) $visit_id)
+                             ->update('patient_flow_visits', array('pbhp_id' => $prior_pbhp));
+                }
+            } else {
+                // New patient: default to first stage.
+                $first_stage = $this->patientflow_model->get_next_stage_after(0);
+                if ($first_stage) {
+                    $this->patientflow_model->set_stage_for_visit($visit_id, (int) $first_stage->id, (string) $first_stage->code);
+                }
+            }
+
             $this->patientflow_model->add_log(array(
                 'visit_id'    => $visit_id,
                 'to_level_id' => $first_level->id,

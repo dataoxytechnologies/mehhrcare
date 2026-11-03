@@ -4901,6 +4901,29 @@ class Patientflow_model extends CI_Model
         return array('stage_id' => (int) $row->stage_id, 'stage_code' => (string) $row->stage_code);
     }
 
+    /**
+     * Return the most recent non-empty PBHP ID assigned to a patient,
+     * so it can be carried over to a new visit.
+     *
+     * @param int $patient_id
+     * @return string|null
+     */
+    public function get_latest_pbhp_id_for_patient($patient_id)
+    {
+        if (!$this->db->table_exists('patient_flow_visits')) {
+            return null;
+        }
+        $this->db->select('pbhp_id');
+        $this->db->from('patient_flow_visits');
+        $this->db->where('patient_id', (int) $patient_id);
+        $this->db->where('pbhp_id IS NOT NULL');
+        $this->db->where('pbhp_id !=', '');
+        $this->db->order_by('id', 'desc');
+        $this->db->limit(1);
+        $row = $this->db->get()->row();
+        return $row ? $row->pbhp_id : null;
+    }
+
     public function set_stage_for_visit($visit_id, $stage_id, $stage_code)
     {
         if (!$this->db->table_exists('patient_flow_stage_assignment')) {
@@ -4926,6 +4949,36 @@ class Patientflow_model extends CI_Model
             'is_current' => 1, 'assigned_at' => date('Y-m-d H:i:s'),
         ));
         return array('status' => true, 'message' => 'Stage assigned.');
+    }
+
+    /**
+     * Batch-load current stages for multiple visits.
+     * Returns an array keyed by visit_id with stage_id and stage_code.
+     *
+     * @param int[] $visit_ids
+     * @return array
+     */
+    public function get_stages_for_visits(array $visit_ids)
+    {
+        $result = array();
+        if (empty($visit_ids)) {
+            return $result;
+        }
+        if (!$this->db->table_exists('patient_flow_stage_assignment')) {
+            return $result;
+        }
+        $this->db->select('visit_id, stage_id, stage_code');
+        $this->db->from('patient_flow_stage_assignment');
+        $this->db->where('is_current', 1);
+        $this->db->where_in('visit_id', $visit_ids);
+        $rows = $this->db->get()->result();
+        foreach ($rows as $r) {
+            $result[(int) $r->visit_id] = array(
+                'stage_id'   => (int) $r->stage_id,
+                'stage_code' => (string) $r->stage_code,
+            );
+        }
+        return $result;
     }
 
     public function get_variant_from_bod($body_build_id)
