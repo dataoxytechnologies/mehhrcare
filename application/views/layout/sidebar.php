@@ -33,24 +33,32 @@
            </li>  
 
 <?php if ($this->rbac->hasPrivilege('patient_flow', 'can_view')) { ?>
-                        <li class="nav-item <?php echo set_Topmenu('patient_flow'); ?>">
-                            <a class="nav-link d-flex align-items-center" href="#" role="button">
-                                <i class="fas fa-route"></i> <span><?php echo $this->lang->line('patient_flow') ?: 'Patient Flow'; ?></span> <i class="fa fa-angle-down ms-auto sidebar-arrow"></i>
-                            </a>
-                            <ul class="sh-subnav <?php echo set_Topmenu('patient_flow') ? 'show' : ''; ?>" id="sub-patientflow">
-                                <?php if ($this->rbac->hasPrivilege('patient_flow', 'can_view')) { ?>
-                                <li class="nav-item" data-submenu="patient_flow"><a class="nav-link" href="<?php echo base_url('admin/patientflow'); ?>"><i class="fas fa-angle-right"></i><?php echo $this->lang->line('patient_flow') ?: 'Patient Flow'; ?></a></li>
-                                <li class="nav-item" data-submenu="patient_flow_token_queue"><a class="nav-link" href="<?php echo base_url('admin/patientflow/token_queue'); ?>"><i class="fas fa-angle-right"></i><?php echo $this->lang->line('token_queue') ?: 'Token Queue'; ?></a></li>
-                                <?php } ?>
-                                <?php if ($this->rbac->hasPrivilege('patient_flow_levels', 'can_view')) { ?>
-                                <li class="nav-item" data-submenu="patient_flow_levels"><a class="nav-link" href="<?php echo base_url('admin/patientflow/levels'); ?>"><i class="fas fa-angle-right"></i><?php echo $this->lang->line('add_patient_flow_level') ?: 'Levels'; ?></a></li>
-                                <?php } ?>
-                                
-                                <li class="nav-item" data-submenu="patient_flow_setting"><a class="nav-link" href="<?php echo base_url('admin/patientflowsetting/setting?group=constitution_master'); ?>"><i class="fas fa-angle-right"></i><?php echo $this->lang->line('patient_flow_master') ?: 'Master'; ?></a></li>
-                                <!-- <li class="nav-item" data-submenu="patient_flow_add"><a class="nav-link" href="<?php echo base_url('admin/patientflow/register'); ?>"><i class="fas fa-angle-right"></i><?php echo $this->lang->line('add_patient') ?: 'Add Patient'; ?></a></li> -->
-                            </ul>
-                        </li>
-                        <?php } ?>
+                         <li class="nav-item <?php echo set_Topmenu('patient_flow'); ?>">
+                             <a class="nav-link d-flex align-items-center" href="#" role="button">
+                                 <i class="fas fa-route"></i> <span><?php echo $this->lang->line('patient_flow') ?: 'Patient Flow'; ?></span> <i class="fa fa-angle-down ms-auto sidebar-arrow"></i>
+                             </a>
+                             <ul class="sh-subnav <?php echo set_Topmenu('patient_flow') ? 'show' : ''; ?>" id="sub-patientflow">
+                                 <?php if ($this->rbac->hasPrivilege('patient_flow', 'can_view')) { ?>
+                                 <li class="nav-item" data-submenu="patient_flow"><a class="nav-link" href="<?php echo base_url('admin/patientflow'); ?>"><i class="fas fa-angle-right"></i><?php echo $this->lang->line('patient_flow') ?: 'Patient Flow'; ?></a></li>
+                                 <?php } ?>
+                                 <?php
+                                 $admin_sidebar = $this->session->userdata('hospitaladmin');
+                                 $roles_sidebar = ($admin_sidebar && isset($admin_sidebar['roles'])) ? $admin_sidebar['roles'] : array();
+                                 $is_superadmin_sidebar = in_array('Super Admin', array_keys($roles_sidebar), true);
+                                 if ($is_superadmin_sidebar): ?>
+                                 <li class="nav-item" data-submenu="patient_flow_token_queue"><a class="nav-link" href="<?php echo base_url('admin/patientflow/token_queue'); ?>"><i class="fas fa-angle-right"></i><?php echo $this->lang->line('token_queue') ?: 'Token Queue'; ?></a></li>
+                                 <?php endif; ?>
+                                 <?php if ($this->rbac->hasPrivilege('patient_flow_levels', 'can_view') && $is_superadmin_sidebar): ?>
+                                 <li class="nav-item" data-submenu="patient_flow_levels"><a class="nav-link" href="<?php echo base_url('admin/patientflow/levels'); ?>"><i class="fas fa-angle-right"></i><?php echo $this->lang->line('add_patient_flow_level') ?: 'Levels'; ?></a></li>
+                                 <?php endif; ?>
+                                 
+                                 <?php if ($is_superadmin_sidebar): ?>
+                                 <li class="nav-item" data-submenu="patient_flow_setting"><a class="nav-link" href="<?php echo base_url('admin/patientflowsetting/setting?group=constitution_master'); ?>"><i class="fas fa-angle-right"></i><?php echo $this->lang->line('patient_flow_master') ?: 'Master'; ?></a></li>
+                                 <?php endif; ?>
+                                 <!-- <li class="nav-item" data-submenu="patient_flow_add"><a class="nav-link" href="<?php echo base_url('admin/patientflow/register'); ?>"><i class="fas fa-angle-right"></i><?php echo $this->lang->line('add_patient') ?: 'Add Patient'; ?></a></li> -->
+                             </ul>
+                         </li>
+                         <?php } ?>
 
            <?php
            if($this->module_lib->hasActive('patient')){

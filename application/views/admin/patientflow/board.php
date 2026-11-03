@@ -290,8 +290,9 @@ if (!function_exists('pf_ct_age_label')) {
                     <th><?php echo $this->lang->line('token') ?: 'Token'; ?></th>
                     <th><?php echo $this->lang->line('patient'); ?></th>
                     <th><?php echo $this->lang->line('pbhp_id'); ?></th>
-                    <th class="text-center"><?php echo $this->lang->line('current_level'); ?></th>
-                    <th><?php echo $this->lang->line('payment'); ?></th>
+<th class="text-center"><?php echo $this->lang->line('current_level'); ?></th>
+<th class="text-center"><?php echo $this->lang->line('stage') ?: 'Stage'; ?></th>
+<th><?php echo $this->lang->line('payment'); ?></th>
                     <th><?php echo $this->lang->line('programme_status') ?: 'Programme Status'; ?></th>
                     <th><?php echo $this->lang->line('programme_name') ?: 'Programme'; ?></th>
                     <th class="text-center"><?php echo $this->lang->line('approval_status') ?: 'Approval'; ?></th>
@@ -362,7 +363,7 @@ if (!function_exists('pf_ct_age_label')) {
                                         <span class="">UID: <?php echo htmlspecialchars($v->patient_uuid); ?></span>
                                     </div>
                                     <?php } ?>
-                                    <strong><?php echo $v->patient_name; ?></strong>
+                                    <strong><?php echo $v->patient_name .' ('. $v->patient_id .')'; ?></strong>
                                     <div class="small text-muted">
                                         <?php
                                         echo ($v->gender ? $v->gender . ' · ' : '') . ($v->age ? $v->age . 'Y' : '');
@@ -376,6 +377,11 @@ if (!function_exists('pf_ct_age_label')) {
                                         <?php echo $v->level_code ? $v->level_code : '—'; ?>
                                     </span>
                                     <div class="small text-muted"><?php echo $v->level_title; ?></div>
+                                </td>
+                                <td class="align-middle text-center">
+                                    <span class="badge bg-secondary-subtle text-secondary-emphasis">
+                                        <?php echo !empty($v->stage_code) ? htmlspecialchars($v->stage_code) : '—'; ?>
+                                    </span>
                                 </td>
                                 <td class="align-middle">
                                     <?php
@@ -597,13 +603,23 @@ if (!function_exists('pf_ct_age_label')) {
                                          <i class="fa fa-print"></i> &nbsp;<?php echo $pf_paid ? ($this->lang->line('print_invoice') ?: 'Print Invoice') : ($this->lang->line('print_billing_ref') ?: 'Print Billing Ref'); ?>
                                      </a>
                                      <?php } ?>
-                                     <?php if (!empty($v->has_programme_bill)) { ?>
-                                     <a href="<?php echo site_url('admin/patientflow/print_programme_bill/' . $v->id); ?>" target="_blank"
-                                        class="btn btn-sm btn-outline-warning w-100 mb-1" data-bs-toggle="tooltip"
-                                        title="Print Programme Bill">
-                                         <i class="fas fa-file-invoice"></i> &nbsp;Print Programme Bill
-                                     </a>
-                                     <?php } ?>
+                                      <?php if (!empty($v->has_programme_bill)) { ?>
+                                      <a href="<?php echo site_url('admin/patientflow/print_programme_bill/' . $v->id); ?>" target="_blank"
+                                         class="btn btn-sm btn-outline-warning w-100 mb-1" data-bs-toggle="tooltip"
+                                         title="Print Programme Bill">
+                                          <i class="fas fa-file-invoice"></i> &nbsp;Print Programme Bill
+                                      </a>
+                                      <?php } ?>
+                                      <?php if (!empty($v->level_can_generate_pharmacy_bill) && $pf_owned) { ?>
+                                      <button type="button"
+                                             class="btn btn-sm btn-outline-dark w-100 mb-1 pf-generate-pharmacy-bill"
+                                             data-visit-id="<?php echo (int) $v->id; ?>"
+                                             data-patient-name="<?php echo addslashes((string) $v->patient_name); ?>"
+                                             data-bs-toggle="tooltip"
+                                             title="Generate Pharmacy Bill">
+                                          <i class="fa fa-shopping-cart"></i> &nbsp;Generate Pharmacy Bill
+                                      </button>
+                                      <?php } ?>
                                      <?php if (!empty($v->level_print_vial)) { ?>
                                      <a href="<?php echo site_url('admin/patientflow/print_vial_labels/' . $v->id); ?>" target="_blank"
                                         class="btn btn-sm btn-outline-success w-100 mb-1" data-bs-toggle="tooltip"
@@ -673,19 +689,29 @@ if (!function_exists('pf_ct_age_label')) {
                                          <i class="fa fa-stethoscope"></i> &nbsp;<?php echo $this->lang->line('case_taking') ?: 'Case Taking'; ?>
                                      </button>
                                      <?php } ?>
-                                     <?php if ($pf_owned && !empty($v->level_can_prescribe_medicine) && !empty($v->case_taking_type)) { ?>
-                                     <button type="button"
-                                            class="btn btn-sm btn-outline-primary w-100 mb-1 pf-med-btn"
-                                            data-bs-toggle="tooltip"
-                                            data-visit="<?php echo (int) $v->id; ?>"
-                                            data-patient-id="<?php echo (int) $v->patient_id; ?>"
-                                            data-patient="<?php echo addslashes((string) $v->patient_name); ?>"
-                                            data-patient-uuid="<?php echo addslashes((string) $v->patient_uuid); ?>"
-                                            data-ct="<?php echo $pf_ct_json; ?>"
-                                            title="<?php echo $this->lang->line('medicine_selection') ?: 'Medicine Selection'; ?>">
-                                           <i class="fas fa-prescription"></i> &nbsp;<?php echo $this->lang->line('medicine_selection') ?: 'Medicine Selection'; ?>
-                                     </button>
-                                     <?php } ?>
+                                      <?php if ($pf_owned && !empty($v->level_can_prescribe_medicine) && !empty($v->case_taking_type)) { ?>
+                                      <button type="button"
+                                             class="btn btn-sm btn-outline-primary w-100 mb-1 pf-med-btn"
+                                             data-bs-toggle="tooltip"
+                                             data-visit="<?php echo (int) $v->id; ?>"
+                                             data-patient-id="<?php echo (int) $v->patient_id; ?>"
+                                             data-patient="<?php echo addslashes((string) $v->patient_name); ?>"
+                                             data-patient-uuid="<?php echo addslashes((string) $v->patient_uuid); ?>"
+                                             data-ct="<?php echo $pf_ct_json; ?>"
+                                             title="<?php echo $this->lang->line('medicine_selection') ?: 'Medicine Selection'; ?>">
+                                        <i class="fas fa-prescription"></i> &nbsp;<?php echo $this->lang->line('medicine_selection') ?: 'Medicine Selection'; ?>
+                                      </button>
+                                      <?php } ?>
+                                      <?php if ($pf_owned && !empty($v->level_can_prescribe_medicine)) { ?>
+                                      <button type="button"
+                                             class="btn btn-sm btn-outline-success w-100 mb-1 pf-dispense-btn"
+                                             data-bs-toggle="tooltip"
+                                             data-visit="<?php echo (int) $v->id; ?>"
+                                             data-patient="<?php echo addslashes((string) $v->patient_name); ?>"
+                                             title="<?php echo $this->lang->line('dispense_medicine') ?: 'Dispense Medicines'; ?>">
+                                         <i class="fas fa-hand-paper"></i> &nbsp;<?php echo $this->lang->line('dispense_medicine') ?: 'Dispense Medicines'; ?>
+                                      </button>
+                                      <?php } ?>
                                      <?php if (!empty($v->case_taking_type) && (!empty($v->level_can_view_case_taking) || !empty($pf_is_superadmin))) { ?>
                                      <button type="button"
                                              class="btn btn-sm btn-outline-info w-100 mb-1 pf-case-view-btn"
@@ -3704,4 +3730,167 @@ $(document).on('click', '.generatebill', function() {
         }
     });
 });
+
+// ===== Dispense Medicines Modal =====
+$(document).on('click', '.pf-dispense-btn', function () {
+    var visitId = $(this).data('visit');
+    var patient = $(this).data('patient') || '';
+    var $modal = $('#pfDispenseModal');
+    if ($modal.parent()[0] && $modal.parent()[0] !== document.body) { $modal.appendTo('body'); }
+
+    $('#pf_ds_visit_id').val(visitId);
+    $('#pf_ds_patient').text(patient);
+    $('#pf_ds_list').html('<div class="text-center text-muted py-3"><i class="fa fa-spinner fa-spin me-1"></i> Loading prescribed medicines...</div>');
+    $('#pf_ds_empty').addClass('d-none');
+
+    var modalEl = document.getElementById('pfDispenseModal');
+    bootstrap.Modal.getOrCreateInstance(modalEl).show();
+
+    $.post('<?php echo site_url('admin/patientflow/get_prescriptions_for_visit'); ?>',
+        { visit_id: visitId },
+        function (resp) {
+            $('#pf_ds_list').empty();
+            if (!resp.status || !resp.data || !resp.data.length) {
+                $('#pf_ds_empty').removeClass('d-none');
+                return;
+            }
+            $('#pf_ds_empty').addClass('d-none');
+            var $ul = $('<ul class="list-group list-group-flush"></ul>');
+            $.each(resp.data, function (i, p) {
+                var dispensed = parseInt(p.stock_deducted) === 1;
+                var btnHtml = dispensed
+                    ? '<span class="badge bg-success">Dispensed</span>'
+                    : '<button type="button" class="btn btn-sm btn-success pf-ds-do" data-presc-id="' + p.id + '" data-med-id="' + p.medicine_id + '"><i class="fas fa-hand-paper me-1"></i> Dispense</button>';
+                var $li = $('<li class="list-group-item d-flex justify-content-between align-items-center"></li>');
+                $li.append('<div><div class="fw-bold">' + (p.medicine_identity || p.medicine_code || 'Medicine #' + p.medicine_id) + '</div><div class="small text-muted">Series: ' + p.series + ' · Variant: ' + p.variant + ' · ' + (p.clinical_approval === 'approved' ? 'Approved' : 'Pending') + '</div></div>');
+                $li.append('<div>' + btnHtml + '</div>');
+                $ul.append($li);
+            });
+            $('#pf_ds_list').append($ul);
+        }, 'json'
+    ).fail(function () {
+        $('#pf_ds_list').html('<div class="text-center text-danger py-3">Failed to load prescribed medicines.</div>');
+    });
+});
+
+// Dispense individual medicine
+$(document).on('click', '.pf-ds-do', function () {
+    var prescId = $(this).data('presc-id');
+    var $btn = $(this).prop('disabled', true).html('<i class="fa fa-spinner fa-spin me-1"></i> Dispensing...');
+    $.post('<?php echo site_url('admin/patientflow/dispense_medicine'); ?>' + '/' + prescId,
+        function (resp) {
+            if (resp.status) {
+                $btn.replaceWith('<span class="badge bg-success">Dispensed</span>');
+                successMsg(resp.message || 'Medicine dispensed.');
+            } else {
+                $btn.prop('disabled', false).html('<i class="fas fa-hand-paper me-1"></i> Dispense');
+                errorMsg(resp.message || 'Failed to dispense medicine.');
+            }
+        }, 'json'
+    ).fail(function () {
+        $btn.prop('disabled', false).html('<i class="fas fa-hand-paper me-1"></i> Dispense');
+        errorMsg('An error occurred while dispensing medicine.');
+    });
+});
+
+var pfPharmacyBillLocks = {};
+
+// Generate Pharmacy Bill — AJAX create + open print view
+$(document).on('click', '.pf-generate-pharmacy-bill', function () {
+    var $btn = $(this);
+    var visitId = $btn.data('visit-id');
+    var patientName = $btn.data('patient-name') || '';
+
+    if (!visitId) {
+        errorMsg('Invalid visit id.');
+        return;
+    }
+
+    if (pfPharmacyBillLocks[visitId]) {
+        return;
+    }
+    pfPharmacyBillLocks[visitId] = true;
+    $btn.prop('disabled', true).html('<i class="fa fa-circle-o-notch fa-spin me-1"></i> Generating...');
+
+    $.ajax({
+        url: '<?php echo site_url('admin/patientflow/generate_pharmacy_bill'); ?>' + '/' + visitId,
+        type: 'GET',
+        dataType: 'json',
+        beforeSend: function () {
+            $btn.prop('disabled', true);
+        },
+        success: function (res) {
+            pfPharmacyBillLocks[visitId] = false;
+            $btn.prop('disabled', false).html('<i class="fa fa-shopping-cart"></i> &nbsp;Generate Pharmacy Bill');
+            if (!res.status) {
+                errorMsg(res.message || 'Unable to generate pharmacy bill.');
+                return;
+            }
+
+            // Match the pharmacy module exactly: it prints the bill HTML returned from
+            // admin/pharmacy/getBillDetails with print=true, using the shared popup() printer.
+            // Opening a new tab/window from an async AJAX success callback is usually blocked by browsers.
+            if (res.page) {
+                popup(res.page);
+                return;
+            }
+
+            var billId = res.bill_id || 0;
+            if (!billId) {
+                successMsg('Pharmacy bill generated, but no bill id was returned.');
+                return;
+            }
+
+            $.ajax({
+                url: '<?php echo site_url('admin/pharmacy/getBillDetails'); ?>',
+                type: 'GET',
+                data: { id: billId, print: true },
+                dataType: 'json',
+                success: function (printRes) {
+                    if (printRes && printRes.page) {
+                        popup(printRes.page);
+                    } else {
+                        errorMsg('Bill was generated but print data was not returned.');
+                    }
+                },
+                error: function () {
+                    errorMsg('Bill was generated but the print page could not be loaded.');
+                }
+            });
+        },
+        error: function () {
+            pfPharmacyBillLocks[visitId] = false;
+            $btn.prop('disabled', false).html('<i class="fa fa-shopping-cart"></i> &nbsp;Generate Pharmacy Bill');
+            errorMsg('An error occurred while generating the pharmacy bill.');
+        }
+    });
+});
+
 </script>
+
+<!-- ===== Dispense Medicines Modal ===== -->
+<div class="modal fade" id="pfDispenseModal" tabindex="-1" role="dialog" aria-labelledby="pfDispenseModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-sm" role="document">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title" id="pfDispenseModalLabel">
+                    <i class="fas fa-hand-paper"></i> <?php echo $this->lang->line('dispense_medicine') ?: 'Dispense Medicines'; ?>
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="pf_ds_visit_id" value="">
+                <p class="mb-2 text-muted small" id="pf_ds_patient"></p>
+                <div id="pf_ds_empty" class="text-center text-muted py-3 d-none">
+                    No prescribed medicines to dispense.
+                </div>
+                <div id="pf_ds_list"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">
+                    <?php echo $this->lang->line('close') ?: 'Close'; ?>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>

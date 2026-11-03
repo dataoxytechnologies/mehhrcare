@@ -182,6 +182,18 @@ class Patientflow extends Admin_Controller
             }
         }
 
+        // Batch-load current stage for each visit so the board can show it.
+        if (!empty($data['visits']) && $this->db->table_exists('patient_flow_stage_assignment')) {
+            $visit_ids = array();
+            foreach ($data['visits'] as $vv) {
+                $visit_ids[] = (int) $vv->id;
+            }
+            $stages = $this->patientflow_model->get_stages_for_visits($visit_ids);
+            foreach ($data['visits'] as $vv) {
+                $vv->stage_code = isset($stages[(int) $vv->id]['stage_code']) ? $stages[(int) $vv->id]['stage_code'] : null;
+            }
+        }
+
         // Filter dropdown: own levels for staff, all levels for superadmin.
         $data['levels']            = $ctx['allowed_level_ids'] === null ? $this->patientflow_model->get_chain() : $ctx['my_levels'];
         $data['filter_level']      = $filter_level;
@@ -372,19 +384,26 @@ class Patientflow extends Admin_Controller
             'created_by'          => $this->customlib->getStaffID(),
         ));
 
-        // Returning patient: carry over programme status and advance stage.
-        if ($existing_patient_id) {
-            $prior_visit = $this->patientflow_model->get_latest_visit_by_patient($patient_id, $visit_id);
-            if ($prior_visit) {
-                if (!empty($prior_visit->programme_status)) {
-                    $this->db->where('id', (int) $visit_id)->update('patient_flow_visits', array('programme_status' => $prior_visit->programme_status));
-                }
-                $prior_stage = $this->patientflow_model->get_stage_from_visit((int) $prior_visit->id);
-                $prior_stage_id = isset($prior_stage['stage_id']) ? (int) $prior_stage['stage_id'] : 0;
-                $next_stage = $this->patientflow_model->get_next_stage_after($prior_stage_id);
-                if ($next_stage) {
-                    $this->patientflow_model->set_stage_for_visit($visit_id, (int) $next_stage->id, (string) $next_stage->code);
-                }
+        // Carry over programme status and advance stage for returning patients.
+        // Check for prior visits directly by patient_id (always set) rather than
+        // relying on name+mobile matching, so the logic works even if the
+        // register form was submitted with slightly different details.
+        $prior_visit = $this->patientflow_model->get_latest_visit_by_patient((int) $patient_id, $visit_id);
+        if ($prior_visit) {
+            if (!empty($prior_visit->programme_status)) {
+                $this->db->where('id', (int) $visit_id)->update('patient_flow_visits', array('programme_status' => $prior_visit->programme_status));
+            }
+            $prior_stage = $this->patientflow_model->get_stage_from_visit((int) $prior_visit->id);
+            $prior_stage_id = isset($prior_stage['stage_id']) ? (int) $prior_stage['stage_id'] : 0;
+            $next_stage = $this->patientflow_model->get_next_stage_after($prior_stage_id);
+            if ($next_stage) {
+                $this->patientflow_model->set_stage_for_visit($visit_id, (int) $next_stage->id, (string) $next_stage->code);
+            }
+            // Carry over the patient's latest PBHP ID to the new visit.
+            $prior_pbhp = $this->patientflow_model->get_latest_pbhp_id_for_patient((int) $patient_id);
+            if ($prior_pbhp) {
+                $this->db->where('id', (int) $visit_id)
+                         ->update('patient_flow_visits', array('pbhp_id' => $prior_pbhp));
             }
         } else {
             // New patient: default to first stage.
@@ -729,6 +748,357 @@ class Patientflow extends Admin_Controller
             }
         }
         redirect('admin/patientflow');
+    }
+
+    /**
+     * Dispense a prescribed medicine — deduct stock from pharmacy batches.
+     * AJAX endpoint.
+     */
+    public function dispense_medicine($prescription_id = 0)
+    {
+        if (!$this->rbac->hasPrivilege('patient_flow', 'can_add')) {
+            header('Content-Type: application/json');
+            echo json_encode(array('status' => false, 'message' => 'Access denied.'));
+            return;
+        }
+
+        $prescription_id = intval($prescription_id);
+        if (!$prescription_id) {
+            header('Content-Type: application/json');
+            echo json_encode(array('status' => false, 'message' => 'Invalid prescription id.'));
+            return;
+        }
+
+        $ctx = $this->pf_context();
+        if (!$ctx['is_superadmin'] && !$this->pf_has_level_flag($ctx, 'can_prescribe_medicine')) {
+            header('Content-Type: application/json');
+            echo json_encode(array('status' => false, 'message' => 'You are not allowed to dispense medicines.'));
+            return;
+        }
+
+        $role_id = null;
+        $role_json = $this->customlib->getStaffRole();
+        if ($role_json) {
+            $role_data = json_decode($role_json, true);
+            $role_id = isset($role_data['id']) ? $role_data['id'] : null;
+        }
+
+        $result = $this->patientflow_model->dispense_medicine(
+            $prescription_id,
+            $this->customlib->getStaffID(),
+            $role_id
+        );
+        header('Content-Type: application/json');
+        echo json_encode($result);
+    }
+
+    public function generate_pharmacy_bill($visit_id = 0)
+    {
+        try {
+            if (!$this->rbac->hasPrivilege('patient_flow', 'can_add')) {
+                header('Content-Type: application/json');
+                echo json_encode(array('status' => false, 'message' => 'Access denied.'));
+                return;
+            }
+
+            $visit_id = intval($visit_id);
+            if (!$visit_id) {
+                header('Content-Type: application/json');
+                echo json_encode(array('status' => false, 'message' => 'Invalid visit id.'));
+                return;
+            }
+
+            $visit = $this->patientflow_model->get_visit($visit_id);
+            if (!$visit) {
+                header('Content-Type: application/json');
+                echo json_encode(array('status' => false, 'message' => 'Visit not found.'));
+                return;
+            }
+
+            $this->load->model('pharmacy_model');
+
+            $existing_bill_id = 0;
+            if ($this->db->table_exists('pharmacy_bill_basic')) {
+                $existing_bill = $this->db
+                    ->select('id')
+                    ->from('pharmacy_bill_basic')
+                    ->where('patient_id', (int) $visit->patient_id)
+                    ->like('note', 'Generated from Patientflow visit #' . $visit_id, 'both')
+                    ->order_by('id', 'desc')
+                    ->limit(1)
+                    ->get()
+                    ->row();
+                if ($existing_bill) {
+                    $existing_bill_id = (int) $existing_bill->id;
+                }
+            }
+
+            if ($existing_bill_id > 0) {
+                if ($this->db->field_exists('billing_status', 'patient_flow_visits')) {
+                    $this->db->where('id', $visit_id)->update('patient_flow_visits', array(
+                        'billing_status' => 'billed',
+                        'billing_status_updated_at' => date('Y-m-d H:i:s'),
+                        'billing_status_updated_by' => $this->customlib->getLoggedInUserID(),
+                    ));
+                }
+
+                $this->load->model('printing_model');
+                $print_details = $this->printing_model->get('', 'pharmacy');
+                $data = array();
+                $data["print_details"] = $print_details;
+                $data['id'] = $existing_bill_id;
+                $data["print"] = true;
+                $data["check_print"] = 'print';
+                $data["is_bill"] = true;
+                $data["bill_print"] = "print_bill";
+                $data['fields'] = $this->customfield_model->get_custom_fields('pharmacy', '', 1);
+                $result = $this->pharmacy_model->getBillDetails($existing_bill_id, $data['check_print']);
+                $data['result'] = $result;
+                $ipd_prescription_basic_id = $result['ipd_prescription_basic_id'];
+                $ipd_opd = $this->pharmacy_model->getIpdPrescriptionBasic($ipd_prescription_basic_id);
+                if ($ipd_prescription_basic_id !== '') {
+                    if (!empty($ipd_opd) && $ipd_opd->ipd_id != '') {
+                        $data['prescription'] = $this->customlib->getSessionPrefixByType('ipd_prescription') . $ipd_opd->id;
+                    } else {
+                        $data['prescription'] = $this->customlib->getSessionPrefixByType('opd_prescription') . $ipd_opd->id;
+                    }
+                } else {
+                    $data['prescription'] = '';
+                }
+                $detail = $this->pharmacy_model->getAllBillDetails($existing_bill_id);
+                $data['detail'] = $detail;
+
+                $action_details = "";
+                if ($this->rbac->hasPrivilege('pharmacy_bill', 'can_view')) {
+                    $action_details .= "<a href='#' class='btn btn-sm btn-light print_bill' data-loading-text='<i class=\"fa fa-circle-o-notch fa-spin\"></i>' data-bs-toggle='tooltip' title='" . $this->lang->line('print') . "' data-record-id='" . $existing_bill_id . "'><i class='fa fa-print'></i></a>";
+                }
+                if ($this->rbac->hasPrivilege('pharmacy_bill', 'can_edit')) {
+                    if ($data["is_bill"]) {
+                        $action_details .= "<a href='#' class='btn btn-sm btn-light edit_bill' data-record-id='" . $existing_bill_id . "' data-prescription-id='" . $data['prescription'] . "' data-bs-toggle='tooltip' title='" . $this->lang->line('edit') . "'><i class='fa fa-pencil'></i></a>";
+                    }
+                }
+                if ($this->rbac->hasPrivilege('pharmacy_bill', 'can_delete')) {
+                    if ($data["is_bill"]) {
+                        $action_details .= "<a href='#' class='btn btn-sm btn-light delete-record' data-record-id='" . $existing_bill_id . "' data-bs-toggle='tooltip' title='" . $this->lang->line('delete') . "'><i class='fa fa-trash'></i></a>";
+                    }
+                }
+
+                $page = $this->load->view('admin/pharmacy/_getBillDetails', $data, true);
+                header('Content-Type: application/json');
+                echo json_encode(array(
+                    'status' => 1,
+                    'page' => $page,
+                    'actions' => $action_details,
+                    'bill_id' => $existing_bill_id,
+                    'already_exists' => true,
+                    'message' => 'Existing patientflow pharmacy bill reopened.'
+                ));
+                return;
+            }
+
+            $this->db->select('pfp.id as prescription_id, pfp.medicine_id, pfp.stock_deducted');
+            $this->db->from('patient_flow_prescription pfp');
+            $this->db->where('pfp.visit_id', $visit_id);
+            $this->db->where('pfp.is_active', 1);
+            $this->db->where('pfp.stock_deducted', 0);
+            $this->db->order_by('pfp.id', 'asc');
+            $prescriptions = $this->db->get()->result_array();
+
+            if (empty($prescriptions)) {
+                header('Content-Type: application/json');
+                echo json_encode(array('status' => false, 'message' => 'No active prescribed medicines found for this visit.'));
+                return;
+            }
+
+            $total = 0;
+            $tax = 0;
+            $discount = 0;
+            $medicines = array();
+            $stock_plan = array();
+
+            foreach ($prescriptions as $p) {
+                $medicine_id = (int) ($p['medicine_id'] ?? 0);
+                if ($medicine_id <= 0) {
+                    continue;
+                }
+
+                $med = $this->db->where('id', $medicine_id)->get('medicine_master')->row();
+                if (!$med || empty($med->pharmacy_id)) {
+                    header('Content-Type: application/json');
+                    echo json_encode(array('status' => false, 'message' => 'Medicine not linked to pharmacy stock: ' . $medicine_id));
+                    return;
+                }
+
+                $pharmacy_id = (int) $med->pharmacy_id;
+                $stock_deduction_ml = (float) ($med->stock_deduction_ml ?: 1);
+                if ($stock_deduction_ml <= 0) {
+                    $stock_deduction_ml = 1;
+                }
+
+                $batch = $this->db
+                    ->select('id, available_quantity')
+                    ->from('medicine_batch_details')
+                    ->where('pharmacy_id', $pharmacy_id)
+                    ->where('available_quantity >', 0)
+                    ->order_by('expiry', 'asc')
+                    ->order_by('id', 'asc')
+                    ->get()
+                    ->row();
+
+                if (!$batch) {
+                    header('Content-Type: application/json');
+                    echo json_encode(array('status' => false, 'message' => 'Insufficient stock for medicine: ' . ($med->medicine_name ?? $medicine_id)));
+                    return;
+                }
+
+                $available_quantity = (float) ($batch->available_quantity ?: 0);
+                if ($available_quantity < $stock_deduction_ml) {
+                    header('Content-Type: application/json');
+                    echo json_encode(array('status' => false, 'message' => 'Insufficient stock for medicine: ' . ($med->medicine_name ?? $medicine_id) . '. Required: ' . number_format($stock_deduction_ml, 2) . ', Available: ' . number_format($available_quantity, 2) . '.'));
+                    return;
+                }
+
+                $sale_rate = (float) ($med->sale_rate ?: 0);
+                $medicines[] = array(
+                    'pharmacy_bill_basic_id'   => 0,
+                    'medicine_batch_detail_id' => (int) $batch->id,
+                    'quantity'                 => $stock_deduction_ml,
+                    'sale_price'               => $sale_rate,
+                    'discount'                 => 0,
+                );
+
+                $total += $sale_rate * $stock_deduction_ml;
+                $stock_plan[] = array(
+                    'prescription_id' => (int) $p['prescription_id'],
+                    'medicine_id'     => $medicine_id,
+                    'quantity'        => $stock_deduction_ml,
+                );
+            }
+
+            if (empty($medicines)) {
+                header('Content-Type: application/json');
+                echo json_encode(array('status' => false, 'message' => 'No valid medicines available for billing.'));
+                return;
+            }
+
+            $net_amount = $total - $discount + $tax;
+
+            $bill_date = date('Y-m-d H:i:s');
+            $bill_detail = array(
+                'case_reference_id'         => !empty($visit->case_reference_id) ? $visit->case_reference_id : null,
+                'date'                     => $bill_date,
+                'patient_id'               => (int) $visit->patient_id,
+                'customer_name'            => !empty($visit->patient_name) ? $visit->patient_name : '',
+                'ipd_prescription_basic_id' => null,
+                'doctor_name'              => !empty($visit->doctor_name) ? $visit->doctor_name : '',
+                'total'                    => $total,
+                'discount'                 => $discount,
+                'tax'                      => $tax,
+                'net_amount'               => $net_amount,
+                'note'                     => 'Generated from Patientflow visit #' . $visit_id,
+                'discount_percentage'      => 0,
+                'tax_percentage'           => 0,
+                'generated_by'             => $this->customlib->getLoggedInUserID(),
+                'organisation_id'          => null,
+                'insurance_id'             => null,
+                'insurance_validity'       => null,
+            );
+
+            $payment_array = array();
+            $new_bill_id = $this->pharmacy_model->addBill($bill_detail, $medicines, array(), array(), $payment_array);
+
+            if (!$new_bill_id) {
+                header('Content-Type: application/json');
+                echo json_encode(array('status' => false, 'message' => 'Failed to create pharmacy bill.'));
+                return;
+            }
+
+            $pending_deduction = false;
+            $deduction_error = '';
+            foreach ($stock_plan as $plan) {
+                $stock_result = $this->patientflow_model->deduct_stock_for_medicine((int) $plan['medicine_id']);
+                if (!$stock_result['status']) {
+                    $pending_deduction = true;
+                    $deduction_error = $stock_result['message'];
+                    break;
+                }
+            }
+
+            if ($pending_deduction) {
+                $this->pharmacy_model->deletePharmacyBill($new_bill_id);
+                header('Content-Type: application/json');
+                echo json_encode(array('status' => false, 'message' => $deduction_error ?: 'Stock deduction failed for pharmacy bill.'));
+                return;
+            }
+
+            foreach ($stock_plan as $plan) {
+                $this->db->where('id', (int) $plan['prescription_id'])
+                    ->update('patient_flow_prescription', array(
+                        'stock_deducted' => 1,
+                        'dispensed_at'   => date('Y-m-d H:i:s'),
+                        'dispensed_by'   => $this->customlib->getLoggedInUserID(),
+                    ));
+            }
+
+            $this->load->model('printing_model');
+            $print_details = $this->printing_model->get('', 'pharmacy');
+
+            $data = array();
+            $data["print_details"] = $print_details;
+            $data['id'] = $new_bill_id;
+            $data["print"] = true;
+            $data["check_print"] = 'print';
+            $data["is_bill"] = true;
+            $data["bill_print"] = "print_bill";
+            $data['fields'] = $this->customfield_model->get_custom_fields('pharmacy', '', 1);
+            $result = $this->pharmacy_model->getBillDetails($new_bill_id, $data['check_print']);
+            $data['result'] = $result;
+
+            $ipd_prescription_basic_id = $result['ipd_prescription_basic_id'];
+            $ipd_opd = $this->pharmacy_model->getIpdPrescriptionBasic($ipd_prescription_basic_id);
+            if ($ipd_prescription_basic_id !== '') {
+                if (!empty($ipd_opd) && $ipd_opd->ipd_id != '') {
+                    $data['prescription'] = $this->customlib->getSessionPrefixByType('ipd_prescription') . $ipd_opd->id;
+                } else {
+                    $data['prescription'] = $this->customlib->getSessionPrefixByType('opd_prescription') . $ipd_opd->id;
+                }
+            } else {
+                $data['prescription'] = '';
+            }
+
+            $detail = $this->pharmacy_model->getAllBillDetails($new_bill_id);
+            $data['detail'] = $detail;
+
+            $action_details = "";
+            if ($this->rbac->hasPrivilege('pharmacy_bill', 'can_view')) {
+                $action_details .= "<a href='#' class='btn btn-sm btn-light print_bill' data-loading-text='<i class=\"fa fa-circle-o-notch fa-spin\"></i>' data-bs-toggle='tooltip' title='" . $this->lang->line('print') . "' data-record-id='" . $new_bill_id . "'><i class='fa fa-print'></i></a>";
+            }
+
+            if ($this->rbac->hasPrivilege('pharmacy_bill', 'can_edit')) {
+                if ($data["is_bill"]) {
+                    $action_details .= "<a href='#' class='btn btn-sm btn-light edit_bill' data-record-id='" . $new_bill_id . "' data-prescription-id='" . $data['prescription'] . "' data-bs-toggle='tooltip' title='" . $this->lang->line('edit') . "'><i class='fa fa-pencil'></i></a>";
+                }
+            }
+
+            if ($this->rbac->hasPrivilege('pharmacy_bill', 'can_delete')) {
+                if ($data["is_bill"]) {
+                    $action_details .= "<a href='#' class='btn btn-sm btn-light delete-record' data-record-id='" . $new_bill_id . "' data-bs-toggle='tooltip' title='" . $this->lang->line('delete') . "'><i class='fa fa-trash'></i></a>";
+                }
+            }
+
+            $page = $this->load->view('admin/pharmacy/_getBillDetails', $data, true);
+
+            header('Content-Type: application/json');
+            echo json_encode(array(
+                'status'  => 1,
+                'page'    => $page,
+                'actions' => $action_details,
+                'bill_id' => $new_bill_id,
+            ));
+        } catch (Exception $e) {
+            header('Content-Type: application/json');
+            echo json_encode(array('status' => false, 'message' => $e->getMessage()));
+        }
     }
 
     /**
@@ -1782,6 +2152,32 @@ class Patientflow extends Admin_Controller
             $this->patientflow_model->sync_visit_amount_from_opd($visit_id);
         }
 
+        // Carry over programme status and advance stage for returning patients.
+        $prior_visit = $this->patientflow_model->get_latest_visit_by_patient((int) $patient_id, $visit_id);
+        if ($prior_visit) {
+            if (!empty($prior_visit->programme_status)) {
+                $this->db->where('id', (int) $visit_id)->update('patient_flow_visits', array('programme_status' => $prior_visit->programme_status));
+            }
+            $prior_stage = $this->patientflow_model->get_stage_from_visit((int) $prior_visit->id);
+            $prior_stage_id = isset($prior_stage['stage_id']) ? (int) $prior_stage['stage_id'] : 0;
+            $next_stage = $this->patientflow_model->get_next_stage_after($prior_stage_id);
+            if ($next_stage) {
+                $this->patientflow_model->set_stage_for_visit($visit_id, (int) $next_stage->id, (string) $next_stage->code);
+            }
+            // Carry over the patient's latest PBHP ID to the new visit.
+            $prior_pbhp = $this->patientflow_model->get_latest_pbhp_id_for_patient((int) $patient_id);
+            if ($prior_pbhp) {
+                $this->db->where('id', (int) $visit_id)
+                         ->update('patient_flow_visits', array('pbhp_id' => $prior_pbhp));
+            }
+        } else {
+            // New patient: default to first stage.
+            $first_stage = $this->patientflow_model->get_next_stage_after(0);
+            if ($first_stage) {
+                $this->patientflow_model->set_stage_for_visit($visit_id, (int) $first_stage->id, (string) $first_stage->code);
+            }
+        }
+
         $this->patientflow_model->add_log(array(
             'visit_id'    => $visit_id,
             'to_level_id' => $first_level->id,
@@ -1877,6 +2273,33 @@ class Patientflow extends Admin_Controller
                 'payment_status'        => 'pending',
                 'created_by'            => $this->customlib->getStaffID(),
             ));
+
+            // Carry over programme status and advance stage for returning patients.
+            $prior_visit = $this->patientflow_model->get_latest_visit_by_patient((int) $patient_id, $visit_id);
+            if ($prior_visit) {
+                if (!empty($prior_visit->programme_status)) {
+                    $this->db->where('id', (int) $visit_id)->update('patient_flow_visits', array('programme_status' => $prior_visit->programme_status));
+                }
+                $prior_stage = $this->patientflow_model->get_stage_from_visit((int) $prior_visit->id);
+                $prior_stage_id = isset($prior_stage['stage_id']) ? (int) $prior_stage['stage_id'] : 0;
+                $next_stage = $this->patientflow_model->get_next_stage_after($prior_stage_id);
+                if ($next_stage) {
+                    $this->patientflow_model->set_stage_for_visit($visit_id, (int) $next_stage->id, (string) $next_stage->code);
+                }
+                // Carry over the patient's latest PBHP ID to the new visit.
+                $prior_pbhp = $this->patientflow_model->get_latest_pbhp_id_for_patient((int) $patient_id);
+                if ($prior_pbhp) {
+                    $this->db->where('id', (int) $visit_id)
+                             ->update('patient_flow_visits', array('pbhp_id' => $prior_pbhp));
+                }
+            } else {
+                // New patient: default to first stage.
+                $first_stage = $this->patientflow_model->get_next_stage_after(0);
+                if ($first_stage) {
+                    $this->patientflow_model->set_stage_for_visit($visit_id, (int) $first_stage->id, (string) $first_stage->code);
+                }
+            }
+
             $this->patientflow_model->add_log(array(
                 'visit_id'    => $visit_id,
                 'to_level_id' => $first_level->id,
@@ -1952,6 +2375,7 @@ class Patientflow extends Admin_Controller
         $patient_enrolled = $this->input->post('patient_enrolled');
         $print_vial = $this->input->post('print_vial');
         $generate_bill = $this->input->post('generate_bill');
+        $can_generate_pharmacy_bill = $this->input->post('can_generate_pharmacy_bill');
 
         $this->form_validation->set_rules('title', $this->lang->line('title'), 'trim|required|max_length[120]');
         $this->form_validation->set_rules('code', $this->lang->line('code'), 'trim|required|max_length[20]');
@@ -2000,6 +2424,7 @@ class Patientflow extends Admin_Controller
             'patient_enrolled' => $patient_enrolled ? 1 : 0,
             'print_vial' => $print_vial ? 1 : 0,
             'generate_bill' => $generate_bill ? 1 : 0,
+            'can_generate_pharmacy_bill' => $can_generate_pharmacy_bill ? 1 : 0,
             'is_active'    => 1,
         );
 
