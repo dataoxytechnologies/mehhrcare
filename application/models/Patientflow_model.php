@@ -1878,9 +1878,9 @@ class Patientflow_model extends CI_Model
 
     /**
      * Issue/activate a queue token for a PAID visit.
-/**
+
      * Issue/activate a queue token for a PAID visit.
- Generates the token number
+
      * if none exists yet and moves the token to ACTIVE (unless it already holds a
      * live token). Permission to call this is gated by the can_generate_token level
      * flag — enforce in the controller.

@@ -1028,7 +1028,21 @@ class Patientflow extends Admin_Controller
         }
 
         // PBHP can only be created after the programme bill is generated.
-        if (empty($visit->has_programme_bill)) {
+        // has_programme_bill is not a DB column — compute it here by checking
+        // whether the visit has a PROGRAMME invoice in patient_flow_fee_invoice.
+        $has_programme_bill = false;
+        if (!empty($visit->invoice_no) && $this->db->table_exists('patient_flow_fee_invoice')) {
+            $inv = $this->db
+                ->select('invoice_no')
+                ->where('invoice_type', 'PROGRAMME')
+                ->where('invoice_no', trim((string) $visit->invoice_no))
+                ->get('patient_flow_fee_invoice')
+                ->row();
+            if ($inv) {
+                $has_programme_bill = true;
+            }
+        }
+        if (!$has_programme_bill) {
             echo json_encode(array('status' => false, 'message' => 'Programme bill must be generated before creating a PBHP ID.'));
             return;
         }
