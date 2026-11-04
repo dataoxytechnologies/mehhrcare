@@ -610,7 +610,7 @@ if (!function_exists('pf_ct_age_label')) {
                                           <i class="fas fa-file-invoice"></i> &nbsp;Print Programme Bill
                                       </a>
                                       <?php } ?>
-                                      <?php if (!empty($v->level_can_generate_pharmacy_bill) && $pf_owned) { ?>
+                                      <?php if (!empty($v->level_can_generate_pharmacy_bill) && $pf_owned && false) { ?>
                                       <button type="button"
                                              class="btn btn-sm btn-outline-dark w-100 mb-1 pf-generate-pharmacy-bill"
                                              data-visit-id="<?php echo (int) $v->id; ?>"
@@ -702,7 +702,7 @@ if (!function_exists('pf_ct_age_label')) {
                                         <i class="fas fa-prescription"></i> &nbsp;<?php echo $this->lang->line('medicine_selection') ?: 'Medicine Selection'; ?>
                                       </button>
                                       <?php } ?>
-                                      <?php if ($pf_owned && !empty($v->level_can_prescribe_medicine)) { ?>
+                                      <?php if ($pf_owned && !empty($v->level_can_prescribe_medicine) && false) { ?>
                                       <button type="button"
                                              class="btn btn-sm btn-outline-success w-100 mb-1 pf-dispense-btn"
                                              data-bs-toggle="tooltip"
@@ -815,6 +815,9 @@ if (!function_exists('pf_ct_age_label')) {
                                 <input name="consultant_doctor" type="hidden" value="<?php echo (int) $pf_default_doctor_id; ?>" />
                                 <input name="payment_mode" type="hidden" value="Cash" />
                                 <input name="insurance_id" id="insuranceid" type="hidden" class="form-control" />
+                                <!-- Visit Type: single | partner -->
+                                <input name="visit_type" id="visit_type" type="hidden" value="single" class="form-control" />
+                                <input name="partner_patient_id" id="partner_patient_id" type="hidden" value="" class="form-control" />
                                 <div class="row">
                                     <div class="col-lg-8 col-md-8 col-sm-8">
                                         <div id="ajax_load"></div>

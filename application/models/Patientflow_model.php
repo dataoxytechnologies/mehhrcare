@@ -90,6 +90,17 @@ class Patientflow_model extends CI_Model
             if (!$this->db->field_exists('programme_status', 'patient_flow_visits')) {
                 $this->db->query("ALTER TABLE `patient_flow_visits` ADD COLUMN `programme_status` VARCHAR(20) NULL DEFAULT NULL COMMENT 'enroll | declined | deferred' AFTER `cash_received`");
             }
+            // Visit type: single | partner — determines whether this visit is for
+            // an individual patient or for two partners sharing one programme.
+            if (!$this->db->field_exists('visit_type', 'patient_flow_visits')) {
+                $this->db->query("ALTER TABLE `patient_flow_visits` ADD COLUMN `visit_type` ENUM('single','partner') NOT NULL DEFAULT 'single' AFTER `programme_status`");
+            }
+            // Partner patient id — stores the id of the second patient when
+            // visit_type = 'partner'. References patients.id.
+            if (!$this->db->field_exists('partner_patient_id', 'patient_flow_visits')) {
+                $this->db->query("ALTER TABLE `patient_flow_visits` ADD COLUMN `partner_patient_id` INT(11) NULL DEFAULT NULL COMMENT '-> patients.id (partner patient for partner-based visits)' AFTER `visit_type`");
+                @$this->db->query("ALTER TABLE `patient_flow_visits` ADD KEY `idx_partner_patient` (`partner_patient_id`)");
+            }
         }
 
         // 5) Level permission: staff whose role owns a level with this flag
@@ -5351,7 +5362,7 @@ class Patientflow_model extends CI_Model
         return $results;
     }
 
-    public function resolve_medicines_for_visit($visit_id, $gender, $concern, $body_build_id, $face_shape_id, $nose_type_id)
+    public function resolve_medicines_for_visit($visit_id, $gender, $primary_system, $body_build_id, $face_shape_id, $nose_type_id)
     {
         $visit_id = (int) $visit_id;
         $result = array(
@@ -5364,7 +5375,7 @@ class Patientflow_model extends CI_Model
             $gender, $body_build_id, $face_shape_id, $nose_type_id
         );
         $result['variant'] = $this->get_variant_from_bod($body_build_id);
-        $result['broad_area_series'] = $this->get_broad_area_by_concern($concern, $gender);
+        $result['broad_area_series'] = $this->get_broad_area_by_concern($primary_system, $gender);
         $result['stage'] = $this->get_stage_from_visit($visit_id);
         // Medicines are NOT resolved here — they are fetched separately via
         // get_medicines_by_series() after the doctor selects a broad area series.

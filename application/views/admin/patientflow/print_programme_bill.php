@@ -243,6 +243,39 @@
             </tbody>
         </table>
 
+        <?php if (!empty($prescriptions)): ?>
+        <table style="margin-top:18px;">
+            <thead>
+                <tr>
+                    <th>Medicine</th>
+                    <th>Code</th>
+                    <th>Series</th>
+                    <th>Variant</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php foreach ($prescriptions as $med): ?>
+                    <tr>
+                        <td><?php echo htmlspecialchars((string) ($med['medicine_identity'] ?: $med['medicine_code'] ?: 'Medicine')); ?></td>
+                        <td><?php echo htmlspecialchars((string) ($med['medicine_code'] ?: '—')); ?></td>
+                        <td><?php echo htmlspecialchars((string) ($med['series'] ?: '—')); ?></td>
+                        <td><?php echo htmlspecialchars((string) ($med['variant'] ?: '—')); ?></td>
+                        <td>
+                            <?php if (!empty($med['dispensed_at'])): ?>
+                                <span style="color:#198754;font-weight:600;">Dispensed</span>
+                            <?php elseif ((int) $med['stock_deducted'] === 1): ?>
+                                <span style="color:#198754;font-weight:600;">Stock Deducted</span>
+                            <?php else: ?>
+                                <span style="color:#6c757d;">Pending</span>
+                            <?php endif; ?>
+                        </td>
+                    </tr>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
+        <?php endif; ?>
+
         <div class="totals">
             Total: <?php echo $currency_symbol . ' ' . number_format((float) ($invoice->grand_total ?: $invoice->subtotal), 2); ?>
         </div>

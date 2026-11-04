@@ -307,6 +307,8 @@ class Patientflow extends Admin_Controller
         $this->form_validation->set_rules('age_month', $this->lang->line('month'), 'trim|required|numeric');
         $this->form_validation->set_rules('age_day', $this->lang->line('day'), 'trim|required|numeric');
         $this->form_validation->set_rules('mobileno', $this->lang->line('phone'), 'trim|numeric');
+        $this->form_validation->set_rules('visit_type', 'Visit Type', 'trim|required|in_list[single,partner]');
+        $this->form_validation->set_rules('partner_patient_id', 'Partner Patient ID', 'trim|integer');
 
         if ($this->form_validation->run() == false) {
             $this->session->set_flashdata('error_msg', validation_errors());
@@ -1946,6 +1948,7 @@ class Patientflow extends Admin_Controller
             'benefit_meta' => $benefit_meta,
             'currency_symbol' => $this->customlib->getHospitalCurrencyFormat(),
             'setting' => !empty($setting_rows) ? $setting_rows[0] : array(),
+            'prescriptions' => $this->patientflow_model->get_prescriptions_for_visit($visit_id),
         );
 
         $this->load->view('admin/patientflow/print_programme_bill', $data);
@@ -2170,6 +2173,11 @@ class Patientflow extends Admin_Controller
                 $this->db->where('id', (int) $visit_id)
                          ->update('patient_flow_visits', array('pbhp_id' => $prior_pbhp));
             }
+            // Carry over the patient's programme ID to the new visit.
+            if (!empty($prior_visit->ct_programme_id)) {
+                $this->db->where('id', (int) $visit_id)
+                         ->update('patient_flow_visits', array('ct_programme_id' => $prior_visit->ct_programme_id));
+            }
         } else {
             // New patient: default to first stage.
             $first_stage = $this->patientflow_model->get_next_stage_after(0);
@@ -2286,12 +2294,17 @@ class Patientflow extends Admin_Controller
                 if ($next_stage) {
                     $this->patientflow_model->set_stage_for_visit($visit_id, (int) $next_stage->id, (string) $next_stage->code);
                 }
-                // Carry over the patient's latest PBHP ID to the new visit.
-                $prior_pbhp = $this->patientflow_model->get_latest_pbhp_id_for_patient((int) $patient_id);
-                if ($prior_pbhp) {
-                    $this->db->where('id', (int) $visit_id)
-                             ->update('patient_flow_visits', array('pbhp_id' => $prior_pbhp));
-                }
+            // Carry over the patient's latest PBHP ID to the new visit.
+            $prior_pbhp = $this->patientflow_model->get_latest_pbhp_id_for_patient((int) $patient_id);
+            if ($prior_pbhp) {
+                $this->db->where('id', (int) $visit_id)
+                         ->update('patient_flow_visits', array('pbhp_id' => $prior_pbhp));
+            }
+            // Carry over the patient's programme ID to the new visit.
+            if (!empty($prior_visit->ct_programme_id)) {
+                $this->db->where('id', (int) $visit_id)
+                         ->update('patient_flow_visits', array('ct_programme_id' => $prior_visit->ct_programme_id));
+            }
             } else {
                 // New patient: default to first stage.
                 $first_stage = $this->patientflow_model->get_next_stage_after(0);
@@ -3093,31 +3106,32 @@ foreach ($slots as $pfx => $label) {
             echo json_encode(array('status' => false, 'message' => 'Access denied.'));
             return;
         }
-        $visit_id    = intval($this->input->post('visit_id', true));
-        $gender      = strtoupper(trim((string) $this->input->post('gender', true)));
-        $concern     = trim((string) $this->input->post('concern', true));
-        $body_build  = intval($this->input->post('body_build_id', true));
+        $visit_id     = intval($this->input->post('visit_id', true));
+        $gender       = strtoupper(trim((string) $this->input->post('gender', true)));
+        $concern      = trim((string) $this->input->post('concern', true));
+        $primary_system = trim((string) $this->input->post('primary_system', true));
+        $body_build   = intval($this->input->post('body_build_id', true));
         $face_shape  = intval($this->input->post('face_shape_id', true));
         $nose_type   = intval($this->input->post('nose_type_id', true));
 
-        if ($visit_id && ($gender === '' || $concern === '' || $body_build <= 0 || $face_shape <= 0 || $nose_type <= 0)) {
+        if ($visit_id && ($gender === '' || $primary_system === '' || $body_build <= 0 || $face_shape <= 0 || $nose_type <= 0)) {
             $v = $this->patientflow_model->get_visit($visit_id);
             if ($v) {
                 if ($gender === '' && !empty($v->ct_sex)) { $gender = strtoupper(trim((string) $v->ct_sex)); }
-                if ($concern === '' && !empty($v->ct_primary_concern)) { $concern = trim((string) $v->ct_primary_concern); }
+                if ($primary_system === '' && !empty($v->ct_primary_system)) { $primary_system = trim((string) $v->ct_primary_system); }
                 if ($body_build <= 0 && !empty($v->ct_bod1)) { $body_build = intval($v->ct_bod1); }
                 if ($face_shape <= 0 && !empty($v->ct_fsh1)) { $face_shape = intval($v->ct_fsh1); }
                 if ($nose_type <= 0 && !empty($v->ct_nos1)) { $nose_type = intval($v->ct_nos1); }
             }
         }
 
-        if (!$visit_id || $gender === '' || $concern === ''
+        if (!$visit_id || $gender === '' || $primary_system === ''
             || $body_build <= 0 || $face_shape <= 0 || $nose_type <= 0) {
-            echo json_encode(array('status' => false, 'message' => 'Case taking (Sex, Concern, Body, Face, Nose) must be completed first.'));
+            echo json_encode(array('status' => false, 'message' => 'Case taking (Sex, Primary System/Area, Body, Face, Nose) must be completed first.'));
             return;
         }
         $result = $this->patientflow_model->resolve_medicines_for_visit(
-            $visit_id, $gender, $concern, $body_build, $face_shape, $nose_type
+            $visit_id, $gender, $primary_system, $body_build, $face_shape, $nose_type
         );
         echo json_encode(array('status' => true, 'data' => $result));
     }
@@ -3644,11 +3658,182 @@ foreach ($slots as $pfx => $label) {
                 'note' => $note,
             )), $staff_id);
 
+        // --- Pharmacy bill entry + stock deduction for pending medicines (single visit, single deduction) ---
+        $this->load->model('pharmacy_model');
+
+        $pharmacy_bill_id = 0;
+        $stock_deduction_error = '';
+        $stock_deducted_count = 0;
+        $medicines = array();
+        $stock_plan = array();
+        $total = 0;
+        $discount = 0;
+        $tax = 0;
+
+        if ($this->db->table_exists('patient_flow_prescription') && $this->db->table_exists('pharmacy_bill_basic')) {
+            $pending_prescriptions = $this->db
+                ->select('id, medicine_id')
+                ->from('patient_flow_prescription')
+                ->where('visit_id', $visit_id)
+                ->where('is_active', 1)
+                ->where('stock_deducted', 0)
+                ->get()
+                ->result_array();
+
+            foreach ($pending_prescriptions as $presc) {
+                $medicine_id = (int) ($presc['medicine_id'] ?? 0);
+                if ($medicine_id <= 0) {
+                    continue;
+                }
+
+                $med = $this->db->where('id', $medicine_id)->get('medicine_master')->row();
+                if (!$med || empty($med->pharmacy_id)) {
+                    continue;
+                }
+
+                $pharmacy_id = (int) $med->pharmacy_id;
+                $stock_deduction_ml = (float) ($med->stock_deduction_ml ?: 1);
+                if ($stock_deduction_ml <= 0) {
+                    $stock_deduction_ml = 1;
+                }
+
+                $batch = $this->db
+                    ->select('id, available_quantity')
+                    ->from('medicine_batch_details')
+                    ->where('pharmacy_id', $pharmacy_id)
+                    ->where('available_quantity >', 0)
+                    ->order_by('expiry', 'asc')
+                    ->order_by('id', 'asc')
+                    ->get()
+                    ->row();
+
+                if (!$batch) {
+                    $stock_deduction_error = 'Insufficient stock for medicine: ' . ($med->medicine_name ?? $medicine_id);
+                    break;
+                }
+
+                $available_quantity = (float) ($batch->available_quantity ?: 0);
+                if ($available_quantity < $stock_deduction_ml) {
+                    $stock_deduction_error = 'Insufficient stock for medicine: ' . ($med->medicine_name ?? $medicine_id) . '. Required: ' . number_format($stock_deduction_ml, 2) . ', Available: ' . number_format($available_quantity, 2) . '.';
+                    break;
+                }
+
+                $sale_rate = (float) ($med->sale_rate ?: 0);
+                $medicines[] = array(
+                    'pharmacy_bill_basic_id'   => 0,
+                    'medicine_batch_detail_id' => (int) $batch->id,
+                    'quantity'                 => $stock_deduction_ml,
+                    'sale_price'               => $sale_rate,
+                    'discount'                 => 0,
+                );
+
+                $total += $sale_rate * $stock_deduction_ml;
+                $stock_plan[] = array(
+                    'prescription_id' => (int) $presc['id'],
+                    'medicine_id'     => $medicine_id,
+                    'quantity'        => $stock_deduction_ml,
+                );
+            }
+        }
+
+        if (empty($stock_deduction_error) && !empty($medicines)) {
+            $net_amount = $total - $discount + $tax;
+            $bill_date = date('Y-m-d H:i:s');
+
+            $bill_detail = array(
+                'case_reference_id'         => !empty($visit->case_reference_id) ? $visit->case_reference_id : null,
+                'date'                     => $bill_date,
+                'patient_id'               => $patient_id,
+                'customer_name'            => !empty($visit->patient_name) ? $visit->patient_name : '',
+                'ipd_prescription_basic_id' => null,
+                'doctor_name'              => !empty($visit->doctor_name) ? $visit->doctor_name : '',
+                'total'                    => $total,
+                'discount'                 => $discount,
+                'tax'                      => $tax,
+                'net_amount'               => $net_amount,
+                'note'                     => 'Generated from Patientflow visit #' . $visit_id,
+                'discount_percentage'      => 0,
+                'tax_percentage'           => 0,
+                'generated_by'             => $staff_id,
+                'organisation_id'          => null,
+                'insurance_id'             => null,
+                'insurance_validity'       => null,
+            );
+
+            $payment_array = array();
+            $pharmacy_bill_id = $this->pharmacy_model->addBill($bill_detail, $medicines, array(), array(), $payment_array);
+
+            if (!$pharmacy_bill_id) {
+                $stock_deduction_error = 'Failed to create pharmacy bill entry.';
+            }
+        }
+
+        if (empty($stock_deduction_error) && !empty($stock_plan)) {
+            foreach ($stock_plan as $plan) {
+                $stock_result = $this->patientflow_model->deduct_stock_for_medicine((int) $plan['medicine_id']);
+                if (!$stock_result['status']) {
+                    $stock_deduction_error = $stock_result['message'];
+                    break;
+                }
+
+                $this->db->where('id', (int) $plan['prescription_id'])
+                    ->update('patient_flow_prescription', array(
+                        'stock_deducted' => 1,
+                        'dispensed_at'   => date('Y-m-d H:i:s'),
+                        'dispensed_by'   => $staff_id,
+                    ));
+                $stock_deducted_count++;
+            }
+        }
+
+        if (!empty($stock_deduction_error)) {
+            // Rollback: delete pharmacy bill if created
+            if ($pharmacy_bill_id > 0) {
+                $this->pharmacy_model->deletePharmacyBill($pharmacy_bill_id);
+            }
+            // Rollback: delete invoice lines, invoice, revert schedule and visit
+            if ($this->db->table_exists('patient_flow_fee_invoice_line')) {
+                $this->db->where('invoice_id', $invoice_id)->delete('patient_flow_fee_invoice_line');
+            }
+            if ($this->db->table_exists('patient_flow_fee_invoice')) {
+                $this->db->where('id', $invoice_id)->delete('patient_flow_fee_invoice');
+            }
+            $this->db->where('id', $schedule_id)->update('patient_flow_programme_payment_schedule', array(
+                'status'      => 'PENDING',
+                'paid_at'     => null,
+                'payment_ref' => null,
+            ));
+            if ($this->db->field_exists('billing_status', 'patient_flow_visits')) {
+                $this->db->where('id', $visit_id)->update('patient_flow_visits', array(
+                    'billing_status' => 'pending',
+                    'billing_status_updated_at' => null,
+                    'billing_status_updated_by' => null,
+                ));
+            }
+
+            $this->patientflow_model->write_fee_audit_log('programme_payment_schedule', $schedule_id, 'stock_deduction_failed',
+                json_encode(array('status' => 'PAID', 'invoice_no' => $invoice_no, 'pharmacy_bill_id' => $pharmacy_bill_id)),
+                json_encode(array('status' => 'PENDING', 'error' => $stock_deduction_error)),
+                $staff_id);
+
+            echo json_encode(array(
+                'status' => false,
+                'message' => 'Programme bill created but pharmacy bill/stock deduction failed and was rolled back: ' . $stock_deduction_error,
+            ));
+            return;
+        }
+
+        $this->patientflow_model->write_fee_audit_log('programme_payment_schedule', $schedule_id, 'stock_deducted',
+            json_encode(array('stock_deducted_count' => 0, 'pharmacy_bill_id' => $pharmacy_bill_id)),
+            json_encode(array('stock_deducted_count' => $stock_deducted_count, 'pharmacy_bill_id' => $pharmacy_bill_id)), $staff_id);
+
         echo json_encode(array(
-            'status'    => true,
-            'message'   => 'Programme bill generated successfully.',
-            'invoice_no'=> $invoice_no,
-            'amount'    => number_format($amount, 2, '.', ''),
+            'status'             => true,
+            'message'            => 'Programme bill generated successfully.',
+            'invoice_no'         => $invoice_no,
+            'amount'             => number_format($amount, 2, '.', ''),
+            'stock_deducted'     => $stock_deducted_count,
+            'pharmacy_bill_id'   => $pharmacy_bill_id,
         ));
     }
 
