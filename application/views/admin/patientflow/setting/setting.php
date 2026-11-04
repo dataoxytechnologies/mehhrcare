@@ -38,6 +38,9 @@
         if (isset($programmes)) { $sub_data['programmes'] = $programmes; }
         if (isset($subcategories)) { $sub_data['subcategories'] = $subcategories; }
         if (isset($stages)) { $sub_data['stages'] = $stages; }
+        if (isset($sft_allocations)) { $sub_data['sft_allocations'] = $sft_allocations; }
+        if (isset($sft_groups))      { $sub_data['sft_groups']      = $sft_groups; }
+        if (isset($sft_stages))      { $sub_data['sft_stages']      = $sft_stages; }
         $this->load->view('admin/patientflow/setting/' . $active_group, $sub_data);
         ?>
     </div>

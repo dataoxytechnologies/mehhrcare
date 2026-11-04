@@ -7057,4 +7057,216 @@ class Patientflow_model extends CI_Model
         $next = $this->db->where('sort_order >', (int) $current->sort_order)->order_by('sort_order', 'asc')->order_by('id', 'asc')->get('stage_master')->row();
         return $next ? $next : $current;
     }
+
+    /* ========================================================================
+       STAGE FEE TEMPLATE — programme_group × coverage × stage → standard_amount
+       Table: patient_flow_programme_fee_stage_allocation
+       ======================================================================== */
+
+    /**
+     * Get all stage fee allocations, joined with group and stage info.
+     * Optionally filtered by group_id.
+     *
+     * @param  int|null $group_id
+     * @return array
+     */
+    public function get_stage_fee_allocations($group_id = null)
+    {
+        if (!$this->db->table_exists('patient_flow_programme_fee_stage_allocation')) {
+            return [];
+        }
+        $this->db->select(
+            'sa.id, sa.group_id, sa.coverage, sa.stage_id, sa.standard_amount,
+             sa.effective_from, sa.effective_to,
+             pg.code AS group_code, pg.name AS group_name, pg.coverage_model,
+             sm.code AS stage_code, sm.quarter, sm.stage, sm.duration_days'
+        );
+        $this->db->from('patient_flow_programme_fee_stage_allocation sa');
+        $this->db->join('patient_flow_programme_group pg', 'pg.id = sa.group_id', 'left');
+        $this->db->join('stage_master sm', 'sm.id = sa.stage_id', 'left');
+        if ($group_id) {
+            $this->db->where('sa.group_id', (int) $group_id);
+        }
+        $this->db->order_by('pg.code', 'asc');
+        $this->db->order_by('sa.coverage', 'asc');
+        $this->db->order_by('sm.sort_order', 'asc');
+        $this->db->order_by('sm.id', 'asc');
+        return $this->db->get()->result();
+    }
+
+    /**
+     * Get a single stage fee allocation row by ID (with joined group/stage info).
+     *
+     * @param  int $id
+     * @return object|null
+     */
+    public function get_stage_fee_allocation_by_id($id)
+    {
+        if (!$this->db->table_exists('patient_flow_programme_fee_stage_allocation')) {
+            return null;
+        }
+        $this->db->select(
+            'sa.id, sa.group_id, sa.coverage, sa.stage_id, sa.standard_amount,
+             sa.effective_from, sa.effective_to,
+             pg.code AS group_code, pg.name AS group_name, pg.coverage_model,
+             sm.code AS stage_code, sm.quarter, sm.stage, sm.duration_days'
+        );
+        $this->db->from('patient_flow_programme_fee_stage_allocation sa');
+        $this->db->join('patient_flow_programme_group pg', 'pg.id = sa.group_id', 'left');
+        $this->db->join('stage_master sm', 'sm.id = sa.stage_id', 'left');
+        $this->db->where('sa.id', (int) $id);
+        return $this->db->get()->row();
+    }
+
+    /**
+     * Insert or update a stage fee allocation entry.
+     * Prevents duplicate (group_id, coverage, stage_id, effective_from).
+     *
+     * @param  int   $id   0 = insert, >0 = update
+     * @param  array $data Keys: group_id, coverage, stage_id, standard_amount, effective_from, effective_to
+     * @return array ['status' => bool, 'message' => string, 'id' => int]
+     */
+    public function save_stage_fee_allocation($id, $data)
+    {
+        if (!$this->db->table_exists('patient_flow_programme_fee_stage_allocation')) {
+            return ['status' => false, 'message' => 'Stage fee allocation table not found.'];
+        }
+
+        $id             = (int) $id;
+        $group_id       = (int) ($data['group_id'] ?? 0);
+        $coverage       = strtoupper(trim((string) ($data['coverage'] ?? '')));
+        $stage_id       = (int) ($data['stage_id'] ?? 0);
+        $standard_amount = (float) ($data['standard_amount'] ?? 0);
+        $effective_from = trim((string) ($data['effective_from'] ?? ''));
+        $effective_to   = trim((string) ($data['effective_to'] ?? ''));
+        $effective_to   = $effective_to === '' ? null : $effective_to;
+
+        // Validate required
+        if ($group_id <= 0) {
+            return ['status' => false, 'message' => 'Programme group is required.'];
+        }
+        if (!in_array($coverage, ['ONE_PARTNER', 'BOTH_PARTNERS', 'PER_PATIENT'], true)) {
+            return ['status' => false, 'message' => 'Invalid coverage value.'];
+        }
+        if ($stage_id <= 0) {
+            return ['status' => false, 'message' => 'Stage is required.'];
+        }
+        if ($standard_amount < 0) {
+            return ['status' => false, 'message' => 'Standard amount cannot be negative.'];
+        }
+        if ($effective_from === '') {
+            $effective_from = date('Y-m-d');
+        }
+
+        // Validate group exists
+        if (!$this->db->where('id', $group_id)->get('patient_flow_programme_group')->row()) {
+            return ['status' => false, 'message' => 'Programme group not found.'];
+        }
+        // Validate stage exists
+        if (!$this->db->table_exists('stage_master') ||
+            !$this->db->where('id', $stage_id)->get('stage_master')->row()) {
+            return ['status' => false, 'message' => 'Stage not found.'];
+        }
+
+        // Duplicate check (exclude self on edit)
+        $dup_query = $this->db
+            ->where('group_id', $group_id)
+            ->where('coverage', $coverage)
+            ->where('stage_id', $stage_id)
+            ->where('effective_from', $effective_from);
+        if ($id > 0) {
+            $dup_query = $this->db->where('id !=', $id);
+        }
+        $dup = $this->db->get('patient_flow_programme_fee_stage_allocation')->row();
+        if ($dup) {
+            return ['status' => false, 'message' => 'An entry for this Group + Coverage + Stage + Effective From already exists.'];
+        }
+
+        $row = [
+            'group_id'        => $group_id,
+            'coverage'        => $coverage,
+            'stage_id'        => $stage_id,
+            'standard_amount' => $standard_amount,
+            'effective_from'  => $effective_from,
+            'effective_to'    => $effective_to,
+        ];
+
+        if ($id > 0) {
+            $this->db->where('id', $id)->update('patient_flow_programme_fee_stage_allocation', $row);
+            if ($this->db->table_exists('patient_flow_fee_audit_log')) {
+                $this->write_fee_audit_log('patient_flow_programme_fee_stage_allocation', $id, 'update',
+                    null, json_encode($row), $this->session->userdata('staff_id') ?: 0);
+            }
+            return ['status' => true, 'message' => 'Stage fee entry updated.', 'id' => $id];
+        }
+
+        $this->db->insert('patient_flow_programme_fee_stage_allocation', $row);
+        $new_id = (int) $this->db->insert_id();
+        if ($this->db->table_exists('patient_flow_fee_audit_log')) {
+            $this->write_fee_audit_log('patient_flow_programme_fee_stage_allocation', $new_id, 'create',
+                null, json_encode($row), $this->session->userdata('staff_id') ?: 0);
+        }
+        return ['status' => true, 'message' => 'Stage fee entry added.', 'id' => $new_id];
+    }
+
+    /**
+     * Delete a stage fee allocation entry.
+     *
+     * @param  int $id
+     * @return array
+     */
+    public function delete_stage_fee_allocation($id)
+    {
+        if (!$this->db->table_exists('patient_flow_programme_fee_stage_allocation')) {
+            return ['status' => false, 'message' => 'Stage fee allocation table not found.'];
+        }
+        $id = (int) $id;
+        if ($id <= 0) {
+            return ['status' => false, 'message' => 'Invalid id.'];
+        }
+        $this->db->where('id', $id)->delete('patient_flow_programme_fee_stage_allocation');
+        return ['status' => true, 'message' => 'Stage fee entry deleted.'];
+    }
+
+    /**
+     * Look up the standard stage fee for a given group, coverage, and stage.
+     * This is the primary billing lookup method.
+     *
+     * Returns the standard_amount (float) for the most recently effective
+     * active entry as of $date, or null if no entry is configured.
+     *
+     * Usage in billing:
+     *   $amount = $this->patientflow_model->get_stage_fee($group_id, $coverage, $stage_id);
+     *
+     * @param  int         $group_id
+     * @param  string      $coverage  ONE_PARTNER | BOTH_PARTNERS | PER_PATIENT
+     * @param  int         $stage_id
+     * @param  string|null $date      Y-m-d, defaults to today
+     * @return float|null
+     */
+    public function get_stage_fee($group_id, $coverage, $stage_id, $date = null)
+    {
+        if (!$this->db->table_exists('patient_flow_programme_fee_stage_allocation')) {
+            return null;
+        }
+        $date = $date ? trim((string) $date) : date('Y-m-d');
+        $this->db->select('standard_amount');
+        $this->db->from('patient_flow_programme_fee_stage_allocation');
+        $this->db->where('group_id', (int) $group_id);
+        $this->db->where('coverage', strtoupper(trim((string) $coverage)));
+        $this->db->where('stage_id', (int) $stage_id);
+        $this->db->where('effective_from <=', $date);
+        $this->db->group_start();
+        $this->db->where('effective_to IS NULL', null, false);
+        $this->db->or_where('effective_to >=', $date);
+        $this->db->group_end();
+        $this->db->order_by('effective_from', 'desc');
+        $this->db->limit(1);
+        $row = $this->db->get()->row();
+        return $row ? (float) $row->standard_amount : null;
+    }
+
+    /* ========================================================================
+       END STAGE FEE TEMPLATE MODEL METHODS
+       ======================================================================== */
 }

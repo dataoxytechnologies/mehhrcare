@@ -17,7 +17,7 @@
                     <td><?php echo htmlspecialchars($f->description ?? '-'); ?></td>
                     <td><?php echo htmlspecialchars($f->group_code ?? '-'); ?></td>
                     <td><?php echo htmlspecialchars($f->coverage ?? '-'); ?></td>
-                    <td><?php echo ($f->consultation_fee ?? 0) > 0 ? '$' . number_format($f->consultation_fee, 2) : '-'; ?></td>
+                    <td><?php echo ($f->consultation_fee ?? 0) > 0 ? '₹' . number_format($f->consultation_fee, 2) : '-'; ?></td>
                     <td><?php echo htmlspecialchars($f->gst_type ?? 'NONE'); ?></td>
                     <td><?php echo ($f->gst_rate ?? 0) > 0 ? number_format($f->gst_rate, 2) . '%' : '-'; ?></td>
                     <td><?php echo ($f->is_active ?? 0) == 1 ? '<span class="badge bg-success">Active</span>' : '<span class="badge bg-secondary">Inactive</span>'; ?></td>
