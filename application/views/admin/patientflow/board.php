@@ -364,6 +364,9 @@ if (!function_exists('pf_ct_age_label')) {
                                     </div>
                                     <?php } ?>
                                     <strong><?php echo $v->patient_name .' ('. $v->patient_id .')'; ?></strong>
+                                    <?php if (!empty($v->partner_patient_name)) { ?>
+                                    <div class="small text-muted">Partner: <?php echo htmlspecialchars($v->partner_patient_name); ?></div>
+                                    <?php } ?>
                                     <div class="small text-muted">
                                         <?php
                                         echo ($v->gender ? $v->gender . ' · ' : '') . ($v->age ? $v->age . 'Y' : '');
@@ -719,6 +722,8 @@ if (!function_exists('pf_ct_age_label')) {
                                              data-visit="<?php echo (int) $v->id; ?>"
                                              data-patient-uuid="<?php echo addslashes((string) $v->patient_uuid); ?>"
                                              data-patient="<?php echo addslashes((string) $v->patient_name); ?>"
+                                             data-visit-type="<?php echo addslashes((string) ($v->visit_type ?: 'single')); ?>"
+                                             data-partner-patient="<?php echo addslashes((string) ($v->partner_patient_name ?? '')); ?>"
                                              data-ct="<?php echo $pf_ct_json; ?>"
                                              data-by="<?php echo addslashes(trim(((string) $v->case_taking_by_name) . ' ' . (string) $v->case_taking_by_surname)); ?>"
                                              data-at="<?php echo addslashes((string) $v->case_taking_at); ?>"
@@ -815,9 +820,6 @@ if (!function_exists('pf_ct_age_label')) {
                                 <input name="consultant_doctor" type="hidden" value="<?php echo (int) $pf_default_doctor_id; ?>" />
                                 <input name="payment_mode" type="hidden" value="Cash" />
                                 <input name="insurance_id" id="insuranceid" type="hidden" class="form-control" />
-                                <!-- Visit Type: single | partner -->
-                                <input name="visit_type" id="visit_type" type="hidden" value="single" class="form-control" />
-                                <input name="partner_patient_id" id="partner_patient_id" type="hidden" value="" class="form-control" />
                                 <div class="row">
                                     <div class="col-lg-8 col-md-8 col-sm-8">
                                         <div id="ajax_load"></div>
@@ -902,6 +904,26 @@ if (!function_exists('pf_ct_age_label')) {
                                             </div>
                                                 <div class="opd-pd-photo-cell">
                                                     <img class="opd-pd-photo-lg" src="<?php echo $this->media_storage->getImageURL('uploads/patient_images/no_image.png'); ?>" id="image" alt="<?php echo $this->lang->line('patient'); ?>">
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="sh-form-card mb-2">
+                                            <div class="sh-card-header">
+                                                <span class="sh-card-header-title"><i class="fas fa-users"></i> Visit Details</span>
+                                            </div>
+                                            <div class="p-2">
+                                                <div class="row g-2">
+                                                    <div class="col-md-5">
+                                                        <label for="visit_type" class="form-label mb-1">Visit Type</label>
+                                                        <select name="visit_type" id="visit_type" class="form-control">
+                                                            <option value="single">Single Patient</option>
+                                                            <option value="partner">Partner-Based</option>
+                                                        </select>
+                                                    </div>
+                                                    <div class="col-md-7 d-none" id="pfPartnerPatientWrap">
+                                                        <label for="pf_partner_patient_id" class="form-label mb-1">Partner Patient</label>
+                                                        <select name="partner_patient_id" id="pf_partner_patient_id" class="form-control" style="width:100%;"></select>
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>
@@ -1165,6 +1187,8 @@ function pfOpenOpdFresh() {
     $('#formadd').find('select option:selected').removeAttr('selected');
     $('#formadd').find('select[name="payment_mode"]').val('Cash').trigger('change');
     $('#formadd #patient_id').val('');
+    $('#visit_type').val('single').trigger('change');
+    $('#pf_partner_patient_id').val(null).trigger('change');
     $('#patientDetails').addClass('d-none');
     m.find('.charge_category').val('').trigger('change.select2');
     m.find('.charge').val('').empty().trigger('change');
@@ -1195,6 +1219,23 @@ $(function () {
     $('#myModal .charge_category, #myModal .charge, #myModal #consultant_doctor, #myModal #act').select2({
         dropdownParent: $('#myModal')
     });
+
+    $('#visit_type').on('change', function () {
+        var isPartner = $(this).val() === 'partner';
+        $('#pfPartnerPatientWrap').toggleClass('d-none', !isPartner);
+        $('#pf_partner_patient_id').prop('required', isPartner);
+        if (!isPartner) $('#pf_partner_patient_id').val(null).trigger('change');
+    });
+    $('#pf_partner_patient_id').select2({
+        dropdownParent: $('#myModal'), placeholder: 'Search partner patient', allowClear: true,
+        minimumInputLength: 2,
+        ajax: {
+            url: '<?php echo base_url(); ?>admin/patient/getPatientListAjax', type: 'POST', dataType: 'json', delay: 250,
+            data: function (params) { return { searchTerm: params.term || '' }; },
+            processResults: function (data) { return { results: $.map(data || [], function (item) { return { id: item.id, text: item.text }; }) }; }
+        }
+    });
+    $('#visit_type').trigger('change');
 
     // 2. Initialize #pfCaseModal selects ONLY when it is fully shown
     $('#pfCaseModal').on('shown.bs.modal', function () {
@@ -1498,7 +1539,12 @@ $("#formadd").on('submit', (function (e) {
                 var pf_amt = $("#formadd #apply_amount").val();
                 if (pf_pid) {
                     $.post('<?php echo base_url(); ?>admin/patientflow/enroll_from_opd',
-                        { patient_id: pf_pid, amount: pf_amt },
+                        {
+                            patient_id: pf_pid,
+                            amount: pf_amt,
+                            visit_type: $('#visit_type').val() || 'single',
+                            partner_patient_id: $('#pf_partner_patient_id').val() || ''
+                        },
                         function () { window.location.reload(); }
                     ).fail(function () { window.location.reload(); });
                 } else {
@@ -2185,7 +2231,8 @@ foreach ($pf_ct_slots as $pf_key => $pf_slot) {
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
-                <p class="mb-2 text-muted small" id="pf_ctv_patient"></p>
+                <p class="mb-1 text-muted small" id="pf_ctv_patient"></p>
+                <p class="mb-2 small" id="pf_ctv_visit_info"></p>
                 <div class="row g-2">
                     <div class="col-md-6">
                         <div class="sh-form-card">
@@ -2212,7 +2259,7 @@ foreach ($pf_ct_slots as $pf_key => $pf_slot) {
                     <div class="col-md-6">
                         <div class="sh-form-card">
                             <div class="sh-card-header">
-                                <span class="sh-card-header-title"><i class="fa fa-clipboard-check"></i> Assessment &amp; Status</span>
+                                <span class="sh-card-header-title"><i class="fas fa-clipboard-check"></i> Assessment &amp; Status</span>
                             </div>
                             <div class="sh-card-body">
                         <table class="table table-bordered table-sm mb-0">
@@ -2689,6 +2736,14 @@ $(document).on('click', '.pf-case-view-btn', function () {
     var $modal = $('#pfCaseViewModal');
     if ($modal.parent()[0] && $modal.parent()[0] !== document.body) { $modal.appendTo('body'); }
     $('#pf_ctv_patient').text($btn.data('patient') +' '+ $btn.data('patient-uuid') || '');
+    var visitType = String($btn.data('visit-type') || 'single').toLowerCase();
+    var partnerName = String($btn.data('partner-patient') || '').trim();
+    var visitLabel = visitType === 'partner' ? 'Partner Patient' : 'Single Patient';
+    var visitInfo = '<span class="badge ' + (visitType === 'partner' ? 'bg-info-subtle text-info-emphasis' : 'bg-secondary-subtle text-secondary-emphasis') + '">' + visitLabel + '</span>';
+    if (partnerName !== '') {
+        visitInfo += ' <span class="text-muted">· Partner: ' + $('<div>').text(partnerName).html() + '</span>';
+    }
+    $('#pf_ctv_visit_info').html(visitInfo);
     var ct = pfCtParse(this);
     // Cache the context for the edit button.
     pfCtViewCtx = {

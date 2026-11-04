@@ -1269,6 +1269,7 @@ class Patientflow_model extends CI_Model
     public function get_visit($id)
     {
         $this->db->select('v.*, p.patient_name, p.mobileno, p.gender, p.age, p.guardian_name, p.patient_uuid,
+                           pp.patient_name AS partner_patient_name,
                            l.code AS level_code, l.title AS level_title, l.counter_type AS level_counter, l.level_no AS level_no,
                            l.can_change_payment AS level_can_change_payment, l.can_cash_received AS level_can_cash_received,
                            l.can_change_status AS level_can_change_status, l.can_change_programme_status AS level_can_change_programme_status,
@@ -1280,6 +1281,7 @@ class Patientflow_model extends CI_Model
                            sc.name AS case_taking_by_name, sc.surname AS case_taking_by_surname, sc.employee_id AS case_taking_by_employee_id');
         $this->db->from('patient_flow_visits v');
         $this->db->join('patients p', 'p.id = v.patient_id', 'left');
+        $this->db->join('patients pp', 'pp.id = v.partner_patient_id', 'left');
         $this->db->join('patient_flow_levels l', 'l.id = v.current_level_id', 'left');
         $this->db->join('patient_flow_levels pl', 'pl.parent_id = l.id', 'left'); // next level = child of current
         $this->db->join('patient_flow_levels pv', 'pv.id = l.parent_id', 'left'); // prev level = parent of current
@@ -1310,6 +1312,7 @@ class Patientflow_model extends CI_Model
         $this->db->select('v.*, p.patient_name, p.mobileno, p.gender, p.age, p.month, p.day, p.patient_uuid,
                            p.image, p.dob, p.guardian_name, p.blood_group, p.marital_status, p.email,
                            p.address, p.identification_number, p.known_allergies, p.note,
+                           pp.patient_name AS partner_patient_name,
                            bp.name AS blood_group_name,
                            l.code AS level_code, l.title AS level_title, l.counter_type AS level_counter, l.level_no AS level_no, l.can_approve AS level_can_approve,
                            l.can_generate_billing_ref AS level_can_generate_billing_ref, l.can_print_billing AS level_can_print_billing, l.can_change_status AS level_can_change_status,
@@ -1323,6 +1326,7 @@ class Patientflow_model extends CI_Model
                            sc.name AS case_taking_by_name, sc.surname AS case_taking_by_surname, sc.employee_id AS case_taking_by_employee_id');
         $this->db->from('patient_flow_visits v');
         $this->db->join('patients p', 'p.id = v.patient_id', 'left');
+        $this->db->join('patients pp', 'pp.id = v.partner_patient_id', 'left');
         $this->db->join('patient_flow_levels l', 'l.id = v.current_level_id', 'left');
         $this->db->join('patient_flow_levels pl', 'pl.parent_id = l.id', 'left');  // next = child of current
         $this->db->join('patient_flow_levels pv', 'pv.id = l.parent_id', 'left');  // prev = parent of current
@@ -5492,11 +5496,14 @@ class Patientflow_model extends CI_Model
         }
 
         if ($totalAvailable < $required) {
-            return array('status' => false, 'message' => 'Insufficient stock. Required: ' . number_format($required, 2) . ' ml, Available: ' . number_format($totalAvailable, 2) . ' ml.');
+            $medicine_label = !empty($med->medicine_identity) ? $med->medicine_identity : (!empty($med->medicine_name) ? $med->medicine_name : $medicine_id);
+            return array('status' => false, 'message' => 'Insufficient stock for medicine: ' . $medicine_label . '. Required: ' . number_format($required, 2) . ' ml, Available: ' . number_format($totalAvailable, 2) . ' ml.');
         }
 
-        // Deduct stock from batches (FIFO - oldest first)
+        // Deduct stock from batches (FIFO - oldest first), retaining exact
+        // allocations so a failed bill can restore the stock.
         $remaining = $required;
+        $allocations = array();
         foreach ($batches as $batch) {
             if ($remaining <= 0) {
                 break;
@@ -5507,10 +5514,25 @@ class Patientflow_model extends CI_Model
             $new_qty = $available - $deduct;
             $this->db->where('id', $batch_id)
                 ->update('medicine_batch_details', array('available_quantity' => $new_qty));
+            $allocations[] = array('batch_id' => $batch_id, 'quantity' => $deduct);
             $remaining -= $deduct;
         }
 
-        return array('status' => true, 'message' => 'Stock deducted successfully.', 'deducted_ml' => $stock_deduction_ml);
+        return array('status' => true, 'message' => 'Stock deducted successfully.', 'deducted_ml' => $stock_deduction_ml, 'allocations' => $allocations);
+    }
+
+    /** Restore exact batch quantities after a failed billing operation. */
+    public function restore_stock_allocations($allocations)
+    {
+        foreach ((array) $allocations as $allocation) {
+            $batch_id = (int) ($allocation['batch_id'] ?? 0);
+            $quantity = (float) ($allocation['quantity'] ?? 0);
+            if ($batch_id > 0 && $quantity > 0) {
+                $this->db->set('available_quantity', 'available_quantity + ' . $quantity, false)
+                    ->where('id', $batch_id)
+                    ->update('medicine_batch_details');
+            }
+        }
     }
 
     /**
@@ -5836,7 +5858,8 @@ class Patientflow_model extends CI_Model
         $role = strtolower(trim((string) $requester_role_name));
         $hide_name_roles = array('junior','reception','patient','doctor');
         $hide_name = in_array($role, $hide_name_roles, true);
-        $this->db->select('p.*, m.code AS medicine_code, m.medicine_identity, m.series AS med_series');
+        $this->db->select('p.*, m.code AS medicine_code, m.medicine_identity, m.series AS med_series,
+            m.route_method, m.patient_dose, m.timing, m.frequency, m.duration_text');
         $this->db->from('patient_flow_prescription p');
         $this->db->join('medicine_master m', 'm.id = p.medicine_id', 'left');
         $this->db->where('p.visit_id', $visit_id)->where('p.is_active', 1);
@@ -5853,6 +5876,11 @@ class Patientflow_model extends CI_Model
                 'id' => (int) $r->id, 'medicine_id' => (int) $r->medicine_id,
                 'medicine_code' => (string) ($r->medicine_code ?: ''),
                 'medicine_identity' => $identity, 'series' => (string) ($r->series ?: ''),
+                'route_method' => (string) ($r->route_method ?: ''),
+                'patient_dose' => (string) ($r->patient_dose ?: ''),
+                'timing' => (string) ($r->timing ?: ''),
+                'frequency' => (string) ($r->frequency ?: ''),
+                'duration_text' => (string) ($r->duration_text ?: ''),
                 'variant' => (int) $r->variant, 'prescribed_by' => (int) $r->prescribed_by,
                 'prescribed_at' => (string) $r->prescribed_at,
                 'clinical_approval' => (string) $r->clinical_approval,

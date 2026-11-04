@@ -10,7 +10,8 @@
             background: #fff;
             color: #212529;
             font-family: Arial, Helvetica, sans-serif;
-            padding: 24px;
+            padding: 18px;
+            font-size: 12px;
         }
         .invoice-box {
             max-width: 820px;
@@ -33,11 +34,11 @@
         }
         .header h2 {
             margin: 0;
-            font-size: 26px;
+            font-size: 22px;
         }
         .subtext {
             color: #495057;
-            font-size: 13px;
+            font-size: 11px;
             margin-top: 6px;
         }
         .brand img {
@@ -59,9 +60,9 @@
             border-radius: 6px;
             font-weight: 700;
             font-family: monospace;
-            font-size: 22px;
-            padding: 10px;
-            margin-bottom: 18px;
+            font-size: 16px;
+            padding: 7px;
+            margin-bottom: 14px;
         }
         .row {
             display: grid;
@@ -72,7 +73,7 @@
         .card {
             border: 1px solid #dee2e6;
             border-radius: 8px;
-            padding: 12px 14px;
+            padding: 9px 11px;
             background: #fff;
         }
         .label {
@@ -94,19 +95,20 @@
         }
         th, td {
             border-top: 1px solid #dee2e6;
-            padding: 8px 6px;
+            padding: 5px 4px;
             text-align: left;
+            font-size: 11px;
         }
         th {
             text-transform: uppercase;
-            font-size: 12px;
+            font-size: 10px;
             color: #495057;
         }
         .totals {
             margin-top: 16px;
             display: flex;
             justify-content: flex-end;
-            font-size: 18px;
+            font-size: 15px;
             font-weight: 700;
         }
         .sig {
@@ -168,6 +170,9 @@
         <div class="row">
             <div class="card">
                 <div><span class="label">Patient</span><span class="value"><strong><?php echo htmlspecialchars((string) ($visit->patient_name ?? 'N/A')); ?></strong></span></div>
+                <?php if (!empty($visit->partner_patient_name)) { ?>
+                    <div><span class="label">Partner Patient</span><span class="value"><strong><?php echo htmlspecialchars((string) $visit->partner_patient_name); ?></strong></span></div>
+                <?php } ?>
                 <div><span class="label">Phone</span><span class="value"><?php echo htmlspecialchars((string) ($visit->mobileno ?? 'N/A')); ?></span></div>
                 <div><span class="label">Patient UID</span><span class="value"><?php echo htmlspecialchars((string) ($visit->patient_uuid ?? 'N/A')); ?></span></div>
             </div>
@@ -182,6 +187,8 @@
             <div class="row" style="margin-bottom:0; gap:10px;">
                 <div class="col-md-6"><strong>Programme:</strong> <?php echo htmlspecialchars((string) $programme_name); ?></div>
                 <div class="col-md-6"><strong>Programme Group:</strong> <?php echo htmlspecialchars((string) $programme_group_name); ?></div>
+                <div class="col-md-6"><strong>Enrollment:</strong> <?php echo htmlspecialchars((string) ($enrollment->uid ?? ($enrollment->id ?? '—'))); ?></div>
+                <div class="col-md-6"><strong>Stage:</strong> <?php echo htmlspecialchars((string) ($stage_name ?? '—')); ?></div>
                 <div class="col-md-6"><strong>Programme Source:</strong> <?php echo htmlspecialchars((string) (($benefit_meta['source'] ?? 'NONE') === 'ASSISTANCE' ? 'Fee Assistance' : (($benefit_meta['source'] ?? 'NONE') === 'CAMPAIGN' ? 'Discount Campaign' : 'Direct Billing'))); ?></div>
                 <!-- <div class="col-md-6"><strong>Source Code:</strong> <?php echo htmlspecialchars((string) ($benefit_meta['source_code'] ?? '—')); ?></div> -->
                 <div class="col-md-6"><strong>Schedule:</strong> Q<?php echo htmlspecialchars((string) ($schedule->quarter_no ?? 1)); ?> · Seq <?php echo htmlspecialchars((string) ($schedule->seq_no ?? 1)); ?></div>
@@ -251,7 +258,11 @@
                     <th>Code</th>
                     <th>Series</th>
                     <th>Variant</th>
-                    <th>Status</th>
+                    <th>Route</th>
+                    <th>Patient Dose</th>
+                    <th>Timing</th>
+                    <th>Frequency</th>
+                    <th>Duration</th>
                 </tr>
             </thead>
             <tbody>
@@ -261,15 +272,11 @@
                         <td><?php echo htmlspecialchars((string) ($med['medicine_code'] ?: '—')); ?></td>
                         <td><?php echo htmlspecialchars((string) ($med['series'] ?: '—')); ?></td>
                         <td><?php echo htmlspecialchars((string) ($med['variant'] ?: '—')); ?></td>
-                        <td>
-                            <?php if (!empty($med['dispensed_at'])): ?>
-                                <span style="color:#198754;font-weight:600;">Dispensed</span>
-                            <?php elseif ((int) $med['stock_deducted'] === 1): ?>
-                                <span style="color:#198754;font-weight:600;">Stock Deducted</span>
-                            <?php else: ?>
-                                <span style="color:#6c757d;">Pending</span>
-                            <?php endif; ?>
-                        </td>
+                        <td><?php echo htmlspecialchars((string) ($med['route_method'] ?: '—')); ?></td>
+                        <td><?php echo htmlspecialchars((string) ($med['patient_dose'] ?: '—')); ?></td>
+                        <td><?php echo htmlspecialchars((string) ($med['timing'] ?: '—')); ?></td>
+                        <td><?php echo htmlspecialchars((string) ($med['frequency'] ?: '—')); ?></td>
+                        <td><?php echo htmlspecialchars((string) ($med['duration_text'] ?: '—')); ?></td>
                     </tr>
                 <?php endforeach; ?>
             </tbody>

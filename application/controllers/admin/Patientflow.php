@@ -949,14 +949,16 @@ class Patientflow extends Admin_Controller
 
                 if (!$batch) {
                     header('Content-Type: application/json');
-                    echo json_encode(array('status' => false, 'message' => 'Insufficient stock for medicine: ' . ($med->medicine_name ?? $medicine_id)));
+                    $medicine_label = !empty($med->medicine_identity) ? $med->medicine_identity : (!empty($med->medicine_name) ? $med->medicine_name : $medicine_id);
+                    echo json_encode(array('status' => false, 'message' => 'Insufficient stock for medicine: ' . $medicine_label));
                     return;
                 }
 
                 $available_quantity = (float) ($batch->available_quantity ?: 0);
                 if ($available_quantity < $stock_deduction_ml) {
                     header('Content-Type: application/json');
-                    echo json_encode(array('status' => false, 'message' => 'Insufficient stock for medicine: ' . ($med->medicine_name ?? $medicine_id) . '. Required: ' . number_format($stock_deduction_ml, 2) . ', Available: ' . number_format($available_quantity, 2) . '.'));
+                    $medicine_label = !empty($med->medicine_identity) ? $med->medicine_identity : (!empty($med->medicine_name) ? $med->medicine_name : $medicine_id);
+                    echo json_encode(array('status' => false, 'message' => 'Insufficient stock for medicine: ' . $medicine_label . '. Required: ' . number_format($stock_deduction_ml, 2) . ', Available: ' . number_format($available_quantity, 2) . '.'));
                     return;
                 }
 
@@ -1880,6 +1882,7 @@ class Patientflow extends Admin_Controller
         $enrollment = null;
         $programme_name = 'Programme';
         $programme_group_name = '—';
+        $stage_name = '—';
         $benefit_meta = array(
             'source' => null,
             'source_name' => '—',
@@ -1936,6 +1939,11 @@ class Patientflow extends Admin_Controller
             }
         }
 
+        $stage = $this->patientflow_model->get_stage_from_visit($visit_id);
+        if (!empty($stage['stage_code'])) {
+            $stage_name = (string) $stage['stage_code'];
+        }
+
         $setting_rows = $this->setting_model->get();
         $data = array(
             'visit' => $visit,
@@ -1945,6 +1953,7 @@ class Patientflow extends Admin_Controller
             'enrollment' => $enrollment,
             'programme_name' => $programme_name,
             'programme_group_name' => $programme_group_name,
+            'stage_name' => $stage_name,
             'benefit_meta' => $benefit_meta,
             'currency_symbol' => $this->customlib->getHospitalCurrencyFormat(),
             'setting' => !empty($setting_rows) ? $setting_rows[0] : array(),
@@ -2076,11 +2085,28 @@ class Patientflow extends Admin_Controller
     public function enroll_from_opd()
     {
         $patient_id = (int) $this->input->post('patient_id');
+        $visit_type = strtolower(trim((string) $this->input->post('visit_type', true)));
+        $partner_patient_id = (int) $this->input->post('partner_patient_id');
         $amount     = $this->input->post('amount');
         $amount     = ($amount !== '' && $amount !== null && is_numeric($amount)) ? (float) $amount : 0;
 
         if (!$patient_id) {
             echo json_encode(array('status' => false, 'message' => 'No patient.'));
+            return;
+        }
+
+        $visit_type = $visit_type ?: 'single';
+        if (!in_array($visit_type, array('single', 'partner'), true)) {
+            echo json_encode(array('status' => false, 'message' => 'Invalid visit type.'));
+            return;
+        }
+        if ($visit_type === 'single') {
+            $partner_patient_id = 0;
+        } elseif (!$partner_patient_id || $partner_patient_id === $patient_id) {
+            echo json_encode(array('status' => false, 'message' => 'A different partner patient is required.'));
+            return;
+        } elseif (!$this->db->where('id', $partner_patient_id)->where('is_active', 'yes')->get('patients')->row()) {
+            echo json_encode(array('status' => false, 'message' => 'Partner patient was not found or is inactive.'));
             return;
         }
 
@@ -2134,6 +2160,8 @@ class Patientflow extends Admin_Controller
         $visit_no = $this->patientflow_model->generate_visit_no('PF');
         $visit_id = $this->patientflow_model->add_visit(array(
             'patient_id'            => $patient_id,
+            'visit_type'            => $visit_type,
+            'partner_patient_id'    => $partner_patient_id ?: null,
             'visit_no'              => $visit_no,
             'current_level_id'      => $first_level->id,
             'level_started_at'      => date('Y-m-d H:i:s'),
@@ -3664,6 +3692,7 @@ foreach ($slots as $pfx => $label) {
         $pharmacy_bill_id = 0;
         $stock_deduction_error = '';
         $stock_deducted_count = 0;
+        $deducted_allocations = array();
         $medicines = array();
         $stock_plan = array();
         $total = 0;
@@ -3680,6 +3709,20 @@ foreach ($slots as $pfx => $label) {
                 ->get()
                 ->result_array();
 
+            // Claim prescription rows before creating the bill. This prevents
+            // concurrent/repeated requests from deducting the same stock twice.
+            $claimed_ids = array_map(function ($p) { return (int) $p['id']; }, $pending_prescriptions);
+            if (!empty($claimed_ids)) {
+                $this->db->where_in('id', $claimed_ids)->where('stock_deducted', 0)
+                    ->update('patient_flow_prescription', array('stock_deducted' => 2));
+                if ((int) $this->db->affected_rows() !== count($claimed_ids)) {
+                    $this->db->where_in('id', $claimed_ids)->where('stock_deducted', 2)
+                        ->update('patient_flow_prescription', array('stock_deducted' => 0));
+                    echo json_encode(array('status' => false, 'message' => 'This prescription is already being processed. Please try again.'));
+                    return;
+                }
+            }
+
             foreach ($pending_prescriptions as $presc) {
                 $medicine_id = (int) ($presc['medicine_id'] ?? 0);
                 if ($medicine_id <= 0) {
@@ -3688,6 +3731,8 @@ foreach ($slots as $pfx => $label) {
 
                 $med = $this->db->where('id', $medicine_id)->get('medicine_master')->row();
                 if (!$med || empty($med->pharmacy_id)) {
+                    $this->db->where_in('id', $claimed_ids)->where('stock_deducted', 2)
+                        ->update('patient_flow_prescription', array('stock_deducted' => 0));
                     continue;
                 }
 
@@ -3708,13 +3753,19 @@ foreach ($slots as $pfx => $label) {
                     ->row();
 
                 if (!$batch) {
-                    $stock_deduction_error = 'Insufficient stock for medicine: ' . ($med->medicine_name ?? $medicine_id);
+                    $this->db->where_in('id', $claimed_ids)->where('stock_deducted', 2)
+                        ->update('patient_flow_prescription', array('stock_deducted' => 0));
+                    $medicine_label = !empty($med->medicine_identity) ? $med->medicine_identity : (!empty($med->medicine_name) ? $med->medicine_name : $medicine_id);
+                    $stock_deduction_error = 'Insufficient stock for medicine: ' . $medicine_label;
                     break;
                 }
 
                 $available_quantity = (float) ($batch->available_quantity ?: 0);
                 if ($available_quantity < $stock_deduction_ml) {
-                    $stock_deduction_error = 'Insufficient stock for medicine: ' . ($med->medicine_name ?? $medicine_id) . '. Required: ' . number_format($stock_deduction_ml, 2) . ', Available: ' . number_format($available_quantity, 2) . '.';
+                    $this->db->where_in('id', $claimed_ids)->where('stock_deducted', 2)
+                        ->update('patient_flow_prescription', array('stock_deducted' => 0));
+                    $medicine_label = !empty($med->medicine_identity) ? $med->medicine_identity : (!empty($med->medicine_name) ? $med->medicine_name : $medicine_id);
+                    $stock_deduction_error = 'Insufficient stock for medicine: ' . $medicine_label . '. Required: ' . number_format($stock_deduction_ml, 2) . ', Available: ' . number_format($available_quantity, 2) . '.';
                     break;
                 }
 
@@ -3765,6 +3816,8 @@ foreach ($slots as $pfx => $label) {
 
             if (!$pharmacy_bill_id) {
                 $stock_deduction_error = 'Failed to create pharmacy bill entry.';
+                $this->db->where_in('id', $claimed_ids)->where('stock_deducted', 2)
+                    ->update('patient_flow_prescription', array('stock_deducted' => 0));
             }
         }
 
@@ -3774,6 +3827,10 @@ foreach ($slots as $pfx => $label) {
                 if (!$stock_result['status']) {
                     $stock_deduction_error = $stock_result['message'];
                     break;
+                }
+
+                if (!empty($stock_result['allocations'])) {
+                    $deducted_allocations = array_merge($deducted_allocations, $stock_result['allocations']);
                 }
 
                 $this->db->where('id', (int) $plan['prescription_id'])
@@ -3787,6 +3844,13 @@ foreach ($slots as $pfx => $label) {
         }
 
         if (!empty($stock_deduction_error)) {
+            if (!empty($deducted_allocations)) {
+                $this->patientflow_model->restore_stock_allocations($deducted_allocations);
+            }
+            if (!empty($claimed_ids)) {
+                $this->db->where_in('id', $claimed_ids)->where('stock_deducted', 2)
+                    ->update('patient_flow_prescription', array('stock_deducted' => 0));
+            }
             // Rollback: delete pharmacy bill if created
             if ($pharmacy_bill_id > 0) {
                 $this->pharmacy_model->deletePharmacyBill($pharmacy_bill_id);
