@@ -29,7 +29,7 @@
                     <td><strong><?php echo htmlspecialchars($f->fee_code ?? '-'); ?></strong></td>
                     <td><?php echo htmlspecialchars($f->item_name ?? '-'); ?></td>
                     <td><?php echo htmlspecialchars($f->category ?? '-'); ?></td>
-                    <td><?php echo ($f->base_amount ?? 0) > 0 ? '$' . number_format($f->base_amount, 2) : '-'; ?></td>
+                    <td><?php echo ($f->base_amount ?? 0) > 0 ? '₹' . number_format($f->base_amount, 2) : '-'; ?></td>
                     <td><?php echo htmlspecialchars($f->basis ?? '-'); ?></td>
                     <td><?php echo htmlspecialchars($f->gst_type ?? '-'); ?></td>
                     <td><?php echo ($f->gst_rate ?? 0) > 0 ? number_format($f->gst_rate, 2) . '%' : '-'; ?></td>

@@ -28,7 +28,7 @@
                     <td><?php echo htmlspecialchars($p->name); ?></td>
                     <td><?php echo htmlspecialchars($p->group_code); ?></td>
                     <td><?php echo htmlspecialchars($p->coverage); ?></td>
-                    <td><?php echo $p->amount ? '$' . number_format($p->amount, 2) : '-'; ?></td>
+                    <td><?php echo $p->amount ? '₹' . number_format($p->amount, 2) : '-'; ?></td>
                     <td><?php echo $p->gst_rate ? number_format($p->gst_rate, 2) . '%' : '-'; ?></td>
                     <td><?php echo htmlspecialchars($p->description ?? '-'); ?></td>
                     <td class="text-end text-nowrap">

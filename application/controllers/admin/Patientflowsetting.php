@@ -19,13 +19,14 @@ class Patientflowsetting extends Admin_Controller
         'broad_area_rules' => 'Broad Area Rules',
     );
     private $programme_groups = array(
-        'programme_group' => 'Programme Group',
-        'programme_master' => 'Programme Master',
-        'fee_master' => 'Fee Master',
-        'discounts' => 'Discounts & Campaigns',
-        'patient_accounts' => 'Patient Fee Accounts',
-        'schedules' => 'Patient Fee Schedules',
-        'consultation_fees' => 'Consultation & Vial Fees',
+        'programme_group'    => 'Programme Group',
+        'programme_master'   => 'Programme Master',
+        'stage_fee_template' => 'Stage Fee Template',
+        'fee_master'         => 'Fee Master',
+        'discounts'          => 'Discounts & Campaigns',
+        'patient_accounts'   => 'Patient Fee Accounts',
+        'schedules'          => 'Patient Fee Schedules',
+        'consultation_fees'  => 'Consultation & Vial Fees',
     );
 
     public function __construct()
@@ -94,6 +95,7 @@ class Patientflowsetting extends Admin_Controller
         } elseif ($group === 'discounts') {
             $data['discounts'] = $this->patientflow_model->get_discount_campaigns();
             $data['categories'] = $this->patientflow_model->get_assistance_categories();
+            $data['programme_groups_list'] = $this->patientflow_model->get_programme_groups();
         } elseif ($group === 'patient_accounts') {
             $data['accounts'] = $this->patientflow_model->get_patient_fee_accounts();
         } elseif ($group === 'schedules') {
@@ -102,11 +104,89 @@ class Patientflowsetting extends Admin_Controller
             $data['fees'] = $this->patientflow_model->get_consultation_fees();
         } elseif ($group === 'programme_group') {
             $data['programme_groups_list'] = $this->patientflow_model->get_programme_groups();
+        } elseif ($group === 'stage_fee_template') {
+            $data['sft_allocations'] = $this->patientflow_model->get_stage_fee_allocations();
+            $data['sft_groups']      = $this->patientflow_model->get_programme_groups();
+            $data['sft_stages']      = $this->patientflow_model->get_stages();
         }
         $this->load->view('layout/header', $data);
         $this->load->view('admin/patientflow/setting/setting', $data);
         $this->load->view('layout/footer', $data);
     }
+
+    // =========================================================================
+    // Stage Fee Template endpoints
+    // =========================================================================
+
+    /**
+     * AJAX GET: return one stage fee allocation row for editing.
+     */
+    public function get_stage_fee_allocation()
+    {
+        if (!$this->rbac->hasPrivilege('patient_flow', 'can_view')) {
+            $this->response_json(array('status' => false, 'message' => 'Access denied.'));
+            return;
+        }
+        $id  = (int) $this->input->post('id', true);
+        $row = $this->patientflow_model->get_stage_fee_allocation_by_id($id);
+        if (!$row) {
+            $this->response_json(array('status' => false, 'message' => 'Entry not found.'));
+            return;
+        }
+        $this->response_json(array(
+            'status' => true,
+            'data'   => array(
+                'id'              => $row->id,
+                'group_id'        => $row->group_id,
+                'coverage'        => $row->coverage,
+                'stage_id'        => $row->stage_id,
+                'standard_amount' => $row->standard_amount,
+                'effective_from'  => $row->effective_from,
+                'effective_to'    => $row->effective_to,
+            ),
+        ));
+    }
+
+    /**
+     * AJAX POST: save (insert or update) a stage fee allocation entry.
+     */
+    public function save_stage_fee_allocation()
+    {
+        if (!$this->rbac->hasPrivilege('patient_flow', 'can_add')
+            && !$this->rbac->hasPrivilege('patient_flow', 'can_edit')) {
+            $this->response_json(array('status' => false, 'message' => 'Access denied.'));
+            return;
+        }
+        $id   = (int) $this->input->post('id', true);
+        $data = array(
+            'group_id'        => $this->input->post('group_id', true),
+            'coverage'        => $this->input->post('coverage', true),
+            'stage_id'        => $this->input->post('stage_id', true),
+            'standard_amount' => $this->input->post('standard_amount', true),
+            'effective_from'  => $this->input->post('effective_from', true),
+            'effective_to'    => $this->input->post('effective_to', true),
+        );
+        $res = $this->patientflow_model->save_stage_fee_allocation($id, $data);
+        $this->response_json($res);
+    }
+
+    /**
+     * AJAX POST: delete a stage fee allocation entry.
+     */
+    public function delete_stage_fee_allocation()
+    {
+        if (!$this->rbac->hasPrivilege('patient_flow', 'can_delete')) {
+            $this->response_json(array('status' => false, 'message' => 'Access denied.'));
+            return;
+        }
+        $id  = (int) $this->input->post('id', true);
+        $res = $this->patientflow_model->delete_stage_fee_allocation($id);
+        $this->response_json($res);
+    }
+
+    // =========================================================================
+    // END Stage Fee Template endpoints
+    // =========================================================================
 
     public function save_fee_item()
     {

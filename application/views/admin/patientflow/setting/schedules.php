@@ -28,9 +28,9 @@
                     <td><?php echo $s->stage_from; ?></td>
                     <td><?php echo $s->stage_to; ?></td>
                     <td><?php echo htmlspecialchars($s->label); ?></td>
-                    <td><?php echo $s->standard_amount ? '$' . number_format($s->standard_amount, 2) : '-'; ?></td>
+                    <td><?php echo $s->standard_amount ? '₹' . number_format($s->standard_amount, 2) : '-'; ?></td>
                     <td><?php echo $s->discount_percent ? number_format($s->discount_percent, 2) . '%' : '-'; ?></td>
-                    <td><?php echo $s->payable_amount ? '$' . number_format($s->payable_amount, 2) : '-'; ?></td>
+                    <td><?php echo $s->payable_amount ? '₹' . number_format($s->payable_amount, 2) : '-'; ?></td>
                     <td><?php echo htmlspecialchars($s->status); ?></td>
                 </tr>
                 <?php endforeach; endif; ?>

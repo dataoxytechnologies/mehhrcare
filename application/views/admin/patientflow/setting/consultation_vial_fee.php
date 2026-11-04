@@ -30,11 +30,11 @@
                     <td><?php echo htmlspecialchars($f->name); ?></td>
                     <td><?php echo htmlspecialchars($f->group_code); ?></td>
                     <td><?php echo htmlspecialchars($f->coverage); ?></td>
-                    <td><?php echo $f->amount ? '$' . number_format($f->amount, 2) : '-'; ?></td>
+                    <td><?php echo $f->amount ? '₹' . number_format($f->amount, 2) : '-'; ?></td>
                     <td><?php echo $f->gst_rate ? number_format($f->gst_rate, 2) . '%' : '-'; ?></td>
                     <td><?php echo htmlspecialchars($f->description ?? '-'); ?></td>
                     <td><?php echo htmlspecialchars($f->vial_type ?? '-'); ?></td>
-                    <td><?php echo $f->fill_amount ? '$' . number_format($f->fill_amount, 2) : '-'; ?></td>
+                    <td><?php echo $f->fill_amount ? '₹' . number_format($f->fill_amount, 2) : '-'; ?></td>
                     <td class="text-end text-nowrap">
                         <button type="button" class="btn btn-sm btn-outline-primary"><i class="fa fa-pencil"></i></button>
                         <a href="#" class="btn btn-sm btn-outline-danger"><i class="fa fa-trash"></i></a>

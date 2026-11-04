@@ -182,8 +182,13 @@
                     <input type="hidden" name="id" id="category_id" value="0">
                     <div class="row form-row">
                         <div class="form-group col-md-4">
-                            <label class="form-label">Group ID <span class="text-danger">*</span></label>
-                            <input type="number" class="form-control" name="group_id" id="category_group_id" required>
+                            <label class="form-label">Programme Group <span class="text-danger">*</span></label>
+                            <select class="form-control" name="group_id" id="category_group_id" required>
+                                <option value="">Select Programme Group</option>
+                                <?php if (!empty($programme_groups_list)): foreach ($programme_groups_list as $pg): ?>
+                                <option value="<?php echo (int) $pg->id; ?>"><?php echo htmlspecialchars(($pg->code ?? '') . ' - ' . ($pg->name ?? '')); ?></option>
+                                <?php endforeach; endif; ?>
+                            </select>
                         </div>
                         <div class="form-group col-md-4">
                             <label class="form-label">Category Code <span class="text-danger">*</span></label>
