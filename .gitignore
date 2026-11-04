@@ -12,6 +12,7 @@
 # General
 *.log
 node_modules/
+vendor/
 .env
 
 # Uploads
