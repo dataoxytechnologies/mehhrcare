@@ -29,6 +29,7 @@ class Patientflowsetting extends Admin_Controller
         'consultation_fees'  => 'Consultation & Vial Fees',
     );
 
+    
     public function __construct()
     {
         parent::__construct();
