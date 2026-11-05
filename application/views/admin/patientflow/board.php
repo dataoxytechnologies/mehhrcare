@@ -640,7 +640,8 @@ if (!function_exists('pf_ct_age_label')) {
                                          <i class="fa fa-plus"></i> &nbsp;<?php echo $this->lang->line('generate_bill') ?: 'Generate Bill'; ?>
                                      </button>
                                      <?php } ?>
-                                      <?php if ($pf_can_manage_billing) { ?>
+                                       <?php // if ($pf_can_manage_billing && !empty($v->has_programme_bill)) { ?>
+                                       <?php if (!empty($v->has_programme_bill)) { ?>
                                       <a href="<?php echo site_url('admin/patientflow/generate_qr_code/' . $v->id); ?>" target="_blank"
                                               class="btn btn-sm btn-outline-info w-100 mb-1"
                                               data-bs-toggle="tooltip"

@@ -50,59 +50,128 @@
         </table>
     </div>
 </div>
-<div class="modal fade" id="medicineModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-centered"><div class="modal-content">
+<div class="modal sh-modal sh-modal-accent fade" id="medicineModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered"><div class="modal-content">
         <form action="<?php echo site_url('admin/patientflowsetting/save_medicine'); ?>" method="post">
             <div class="modal-header"><h5 class="modal-title" id="medicineModalTitle">Add Medicine</h5>
             <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
             <div class="modal-body">
                 <input type="hidden" name="id" id="pf_med_id" value="">
-                <div class="row g-3">
-                    <div class="col-md-3"><label class="form-label">Code <small class="req">*</small></label>
-                    <input type="text" name="code" id="pf_med_code" class="form-control" required maxlength="10"></div>
-                    <div class="col-md-6"><label class="form-label">Identity <small class="req">*</small></label>
-                    <input type="text" name="medicine_identity" id="pf_med_ident" class="form-control" required maxlength="200"></div>
-                    <div class="col-md-3"><label class="form-label">Series <small class="req">*</small></label>
-                    <select name="series" id="pf_med_series" class="form-select" required>
-                        <option value="F">F</option><option value="FA">FA</option>
-                        <option value="FB">FB</option><option value="FC">FC</option>
-                        <option value="FD">FD</option><option value="FX">FX</option>
-                        <option value="E">E</option>
-                    </select></div>
-                    <div class="col-md-3"><label class="form-label">GP Code</label>
-                    <input type="text" name="gp_code" id="pf_med_gp" class="form-control" maxlength="10"></div>
-                    <div class="col-md-4"><label class="form-label">Indication</label>
-                    <input type="text" name="indication" id="pf_med_ind" class="form-control" maxlength="200"></div>
-                    <div class="col-md-5"><label class="form-label">Purpose</label>
-                    <input type="text" name="purpose" id="pf_med_purpose" class="form-control" maxlength="200"></div>
-                    <div class="col-md-3"><label class="form-label">Dose</label>
-                    <input type="text" name="patient_dose" id="pf_med_dose" class="form-control" maxlength="50"></div>
-                    <div class="col-md-4"><label class="form-label">Route</label>
-                    <input type="text" name="route_method" id="pf_med_route" class="form-control" maxlength="100"></div>
-                    <div class="col-md-5"><label class="form-label">Timing</label>
-                    <input type="text" name="timing" id="pf_med_timing" class="form-control" maxlength="100"></div>
-                    <div class="col-md-4"><label class="form-label">Frequency</label>
-                    <input type="text" name="frequency" id="pf_med_freq" class="form-control" maxlength="100"></div>
-                    <div class="col-md-4"><label class="form-label">Duration</label>
-                    <input type="text" name="duration_text" id="pf_med_dur" class="form-control" maxlength="100"></div>
-                    <div class="col-md-4"><label class="form-label">Status</label>
-                    <select name="status" id="pf_med_status" class="form-select">
-                        <option value="Active">Active</option>
-                        <option value="Inactive">Inactive</option>
-                        <option value="Locked">Locked</option>
-                    </select></div>
-                    <div class="col-md-3"><label class="form-label">Disp Qty (ml)</label>
-                    <input type="number" step="0.01" name="dispensing_qty_ml" id="pf_med_dq" class="form-control"></div>
-                    <div class="col-md-3"><label class="form-label">Container</label>
-                    <input type="text" name="container_vial" id="pf_med_cont" class="form-control" maxlength="50"></div>
-                    <div class="col-md-3"><label class="form-label">Stock Deduction (ml)</label>
-                    <input type="number" step="0.01" name="stock_deduction_ml" id="pf_med_sd" class="form-control"></div>
-                    <div class="col-md-3"><label class="form-label">Use Note</label>
-                    <input type="text" name="use_note" id="pf_med_use" class="form-control" maxlength="255"></div>
-                    <div class="col-md-6"><label class="form-label">Control Note</label>
-                    <input type="text" name="control_note" id="pf_med_ctrl" class="form-control" maxlength="255"></div>
-                    <div class="col-md-6"><label class="form-label">Supply Status</label>
-                    <input type="text" name="supply_status" id="pf_med_supply" class="form-control" maxlength="100"></div>
+                <div class="row g-2">
+                    <!-- Code -->
+                    <div class="col-md-4">
+                        <label class="form-label">Code <small class="req">*</small></label>
+                        <input type="text" name="code" id="pf_med_code" class="form-control" required maxlength="10">
+                    </div>
+                    <!-- Identity -->
+                    <div class="col-md-4">
+                        <label class="form-label">Identity <small class="req">*</small></label>
+                        <input type="text" name="medicine_identity" id="pf_med_ident" class="form-control" required maxlength="200">
+                    </div>
+                    <!-- Series -->
+                    <div class="col-md-4">
+                        <label class="form-label">Series <small class="req">*</small></label>
+                        <select name="series" id="pf_med_series" class="form-select" required>
+                            <option value="F">F</option><option value="FA">FA</option>
+                            <option value="FB">FB</option><option value="FC">FC</option>
+                            <option value="FD">FD</option><option value="FX">FX</option>
+                            <option value="E">E</option>
+                        </select>
+                    </div>
+                    <!-- GP Code -->
+                    <div class="col-md-4">
+                        <label class="form-label">GP Code</label>
+                        <input type="text" name="gp_code" id="pf_med_gp" class="form-control" maxlength="10">
+                    </div>
+                    <!-- Indication -->
+                    <div class="col-md-4">
+                        <label class="form-label">Indication</label>
+                        <input type="text" name="indication" id="pf_med_ind" class="form-control" maxlength="200">
+                    </div>
+                    <!-- Purpose -->
+                    <div class="col-md-4">
+                        <label class="form-label">Purpose</label>
+                        <input type="text" name="purpose" id="pf_med_purpose" class="form-control" maxlength="200">
+                    </div>
+                    <!-- Dose + Hindi Patient Dose -->
+                    <div class="col-md-4">
+                        <label class="form-label">Dose</label>
+                        <input type="text" name="patient_dose" id="pf_med_dose" class="form-control" maxlength="50">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Hindi Patient Dose</label>
+                        <input type="text" name="hindi_patient_dose" id="pf_med_hindi_dose" class="form-control" maxlength="100">
+                    </div>
+                    <!-- Route + Hindi Route/Method -->
+                    <div class="col-md-4">
+                        <label class="form-label">Route</label>
+                        <input type="text" name="route_method" id="pf_med_route" class="form-control" maxlength="100">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Hindi Route/Method</label>
+                        <input type="text" name="hindi_route_method" id="pf_med_hindi_route" class="form-control" maxlength="100">
+                    </div>
+                    <!-- Timing + Hindi Timing -->
+                    <div class="col-md-4">
+                        <label class="form-label">Timing</label>
+                        <input type="text" name="timing" id="pf_med_timing" class="form-control" maxlength="100">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Hindi Timing</label>
+                        <input type="text" name="hindi_timing" id="pf_med_hindi_timing" class="form-control" maxlength="100">
+                    </div>
+                    <!-- Frequency + Hindi Frequency -->
+                    <div class="col-md-4">
+                        <label class="form-label">Frequency</label>
+                        <input type="text" name="frequency" id="pf_med_freq" class="form-control" maxlength="100">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Hindi Frequency</label>
+                        <input type="text" name="hindi_frequency" id="pf_med_hindi_freq" class="form-control" maxlength="100">
+                    </div>
+                    <!-- Duration + Hindi Duration -->
+                    <div class="col-md-4">
+                        <label class="form-label">Duration</label>
+                        <input type="text" name="duration_text" id="pf_med_dur" class="form-control" maxlength="100">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Hindi Duration</label>
+                        <input type="text" name="hindi_duration_text" id="pf_med_hindi_dur" class="form-control" maxlength="100">
+                    </div>
+                    <!-- Status -->
+                    <div class="col-md-4">
+                        <label class="form-label">Status</label>
+                        <select name="status" id="pf_med_status" class="form-select">
+                            <option value="Active">Active</option>
+                            <option value="Inactive">Inactive</option>
+                            <option value="Locked">Locked</option>
+                        </select>
+                    </div>
+                    <!-- Disp Qty (ml) -->
+                    <div class="col-md-4">
+                        <label class="form-label">Disp Qty (ml)</label>
+                        <input type="number" step="0.01" name="dispensing_qty_ml" id="pf_med_dq" class="form-control">
+                    </div>
+                    <!-- Container -->
+                    <div class="col-md-4">
+                        <label class="form-label">Container</label>
+                        <input type="text" name="container_vial" id="pf_med_cont" class="form-control" maxlength="50">
+                    </div>
+                    <!-- Stock Deduction (ml) -->
+                    <div class="col-md-4">
+                        <label class="form-label">Stock Deduction (ml)</label>
+                        <input type="number" step="0.01" name="stock_deduction_ml" id="pf_med_sd" class="form-control">
+                    </div>
+                    <!-- Use Note -->
+                    <div class="col-md-4">
+                        <label class="form-label">Use Note</label>
+                        <input type="text" name="use_note" id="pf_med_use" class="form-control" maxlength="255">
+                    </div>
+                    <!-- Control Note -->
+                    <div class="col-md-4">
+                        <label class="form-label">Control Note</label>
+                        <input type="text" name="control_note" id="pf_med_ctrl" class="form-control" maxlength="255">
+                    </div>
                 </div>
             </div>
             <div class="modal-footer">
@@ -126,7 +195,7 @@ function openMedicineModal(id) {
     document.getElementById('medicineModalTitle').textContent = id ? 'Edit Medicine' : 'Add Medicine';
     var row = null;
     for (var i = 0; i < pfMeds.length; i++) { if (String(pfMeds[i].id) === String(id)) { row = pfMeds[i]; break; } }
-    var map = {code:'pf_med_code',medicine_identity:'pf_med_ident',series:'pf_med_series',gp_code:'pf_med_gp',indication:'pf_med_ind',purpose:'pf_med_purpose',patient_dose:'pf_med_dose',route_method:'pf_med_route',timing:'pf_med_timing',frequency:'pf_med_freq',duration_text:'pf_med_dur',dispensing_qty_ml:'pf_med_dq',container_vial:'pf_med_cont',stock_deduction_ml:'pf_med_sd',use_note:'pf_med_use',control_note:'pf_med_ctrl',supply_status:'pf_med_supply',status:'pf_med_status'};
+    var map = {code:'pf_med_code',medicine_identity:'pf_med_ident',series:'pf_med_series',gp_code:'pf_med_gp',indication:'pf_med_ind',purpose:'pf_med_purpose',patient_dose:'pf_med_dose',hindi_patient_dose:'pf_med_hindi_dose',route_method:'pf_med_route',hindi_route_method:'pf_med_hindi_route',timing:'pf_med_timing',hindi_timing:'pf_med_hindi_timing',frequency:'pf_med_freq',hindi_frequency:'pf_med_hindi_freq',duration_text:'pf_med_dur',hindi_duration_text:'pf_med_hindi_dur',dispensing_qty_ml:'pf_med_dq',container_vial:'pf_med_cont',stock_deduction_ml:'pf_med_sd',use_note:'pf_med_use',control_note:'pf_med_ctrl',status:'pf_med_status'};
     for (var f in map) {
         var el = document.getElementById(map[f]);
         if (!row) {
@@ -138,3 +207,8 @@ function openMedicineModal(id) {
     bootstrap.Modal.getOrCreateInstance(document.getElementById('medicineModal')).show();
 }
 </script>
+<style>
+#medicineModal .modal-dialog { max-width: 1250px; }
+#medicineModal .form-label { font-size: 0.85rem; font-weight: 600; margin-bottom: 0.25rem; }
+#medicineModal .form-control, #medicineModal .form-select { font-size: 0.85rem; padding: 0.35rem 0.5rem; }
+</style>

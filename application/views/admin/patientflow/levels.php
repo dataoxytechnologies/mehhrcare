@@ -65,7 +65,7 @@ defined('BASEPATH') or exit('No direct script access allowed');
                     <th><?php echo $this->lang->line('can_prescribe_medicine') ?: 'Prescribe Medicine'; ?></th>
                     <th class="text-center"><?php echo $this->lang->line('print_vial') ?: 'Print Vial'; ?></th>
 <th class="text-center"><?php echo $this->lang->line('generate_bill') ?: 'Generate Bill'; ?></th>
-<th class="text-center"><?php echo $this->lang->line('can_generate_pharmacy_bill') ?: 'Generate Pharmacy Bill'; ?></th>
+<!-- <th class="text-center"><?php echo $this->lang->line('can_generate_pharmacy_bill') ?: 'Generate Pharmacy Bill'; ?></th> -->
 <th class="text-end text-nowrap"><?php echo $this->lang->line('action'); ?></th>
                 </tr>
             </thead>
@@ -87,9 +87,16 @@ defined('BASEPATH') or exit('No direct script access allowed');
                                 ?>
                                 <tr>
                                     <td class="pf-chain-step">
+                                        <?php if ($this->rbac->hasPrivilege('patient_flow_levels', 'can_edit')) { ?>
+                                        <button type="button" class="badge bg-primary-subtle text-primary-emphasis" data-bs-toggle="tooltip" title="<?php echo $this->lang->line('edit'); ?>"
+                                                onclick="openLevelForm(<?php echo $l->id; ?>)">
+                                            <?php echo $l->code; ?>
+                                        </button>
+                                        <?php }else{ ?>
                                         <span class="badge bg-primary-subtle text-primary-emphasis">
                                             <?php echo $l->code; ?>
                                         </span>
+                                        <?php } ?>
                                         <span class="text-muted small"><?php echo $chain; ?></span><br>
                                         <b><?php echo $this->lang->line('title'); ?>:</b> <?php echo $l->title; ?><br>
                                         <b><?php echo $this->lang->line('assigned_role'); ?>:</b> <?php echo $l->role_name ? $l->role_name : '<span class="text-muted">—</span>'; ?><br>
@@ -153,9 +160,9 @@ defined('BASEPATH') or exit('No direct script access allowed');
                                     <td class="text-center">
                                         <?php echo !empty($l->generate_bill) ? '<span class="badge bg-success-subtle text-success-emphasis"><i class="fa fa-check"></i></span>' : '<span class="text-muted">—</span>'; ?>
                                     </td>
-                                    <td class="text-center">
+                                    <!-- <td class="text-center">
                                         <?php echo !empty($l->can_generate_pharmacy_bill) ? '<span class="badge bg-success-subtle text-success-emphasis"><i class="fa fa-check"></i></span>' : '<span class="text-muted">—</span>'; ?>
-                                    </td>
+                                    </td> -->
                                     <td class="align-middle text-end text-nowrap">
                                         <?php if ($this->rbac->hasPrivilege('patient_flow_levels', 'can_edit')) { ?>
                                         <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="tooltip" title="<?php echo $this->lang->line('edit'); ?>"
@@ -283,8 +290,8 @@ defined('BASEPATH') or exit('No direct script access allowed');
                                 <input class="form-check-input" type="checkbox" name="can_change_status" id="pf_can_change_status" value="1">
                                 <label class="form-check-label" for="pf_can_change_status"><?php echo $this->lang->line('can_change_status'); ?></label>
                             </div>
-                        </div>
-                        <div class="col-md-6">
+                        <!-- </div>
+                        <div class="col-md-6"> -->
                             <div class="form-check mb-2">
                                 <input class="form-check-input" type="checkbox" name="can_generate_token" id="pf_can_generate_token" value="1">
                                 <label class="form-check-label" for="pf_can_generate_token"><?php echo $this->lang->line('can_generate_token'); ?></label>
@@ -317,10 +324,10 @@ defined('BASEPATH') or exit('No direct script access allowed');
                                 <input class="form-check-input" type="checkbox" name="generate_bill" id="pf_generate_bill" value="1">
                                 <label class="form-check-label" for="pf_generate_bill"><?php echo $this->lang->line('generate_bill') ?: 'Generate Bill'; ?></label>
                             </div>
-                            <div class="form-check mb-2">
+                            <!-- <div class="form-check mb-2">
                                 <input class="form-check-input" type="checkbox" name="can_generate_pharmacy_bill" id="pf_can_generate_pharmacy_bill" value="1">
                                 <label class="form-check-label" for="pf_can_generate_pharmacy_bill"><?php echo $this->lang->line('can_generate_pharmacy_bill') ?: 'Generate Pharmacy Bill'; ?></label>
-                            </div>
+                            </div> -->
                         </div>
                     </div>
                 </div>
@@ -370,7 +377,7 @@ defined('BASEPATH') or exit('No direct script access allowed');
                 if (parseInt(row.can_prescribe_medicine) === 1) { $('#pf_can_prescribe_medicine').prop('checked', true); }
                 if (parseInt(row.print_vial) === 1) { $('#pf_print_vial').prop('checked', true); }
                 if (parseInt(row.generate_bill) === 1) { $('#pf_generate_bill').prop('checked', true); }
-                if (parseInt(row.can_generate_pharmacy_bill) === 1) { $('#pf_can_generate_pharmacy_bill').prop('checked', true); }
+                // if (parseInt(row.can_generate_pharmacy_bill) === 1) { $('#pf_can_generate_pharmacy_bill').prop('checked', true); }
             }
         }
         bootstrap.Modal.getOrCreateInstance(document.getElementById('addLevel'), { backdrop: 'static', keyboard: false }).show();

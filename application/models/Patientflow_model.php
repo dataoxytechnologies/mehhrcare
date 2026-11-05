@@ -390,9 +390,32 @@ class Patientflow_model extends CI_Model
         if (!$this->db->table_exists('patient_flow_fee_audit_log')) {
             $this->db->query("CREATE TABLE IF NOT EXISTS `patient_flow_fee_audit_log` (`id` BIGINT NOT NULL AUTO_INCREMENT, `entity` VARCHAR(40) NOT NULL, `entity_id` INT NOT NULL, `action` VARCHAR(30) NOT NULL, `old_json` MEDIUMTEXT NULL DEFAULT NULL, `new_json` MEDIUMTEXT NULL DEFAULT NULL, `user_id` INT NOT NULL, `created_at` DATETIME NOT NULL, PRIMARY KEY (`id`), KEY `idx_entity` (`entity`,`entity_id`)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3");
         }
-
+        
         $this->seed_medicine_section();
 
+        // 37) Hindi patient instructions for medicine master.
+        if ($this->db->table_exists('medicine_master')) {
+
+            if (!$this->db->field_exists('hindi_patient_dose', 'medicine_master')) {
+                $this->db->query("ALTER TABLE `medicine_master` ADD COLUMN `hindi_patient_dose` VARCHAR(100) NULL DEFAULT NULL COMMENT 'Hindi patient dose instruction' AFTER `patient_dose`");
+            }
+
+            if (!$this->db->field_exists('hindi_route_method', 'medicine_master')) {
+                $this->db->query("ALTER TABLE `medicine_master` ADD COLUMN `hindi_route_method` VARCHAR(100) NULL DEFAULT NULL COMMENT 'Hindi route/method instruction' AFTER `route_method`");
+            }
+
+            if (!$this->db->field_exists('hindi_timing', 'medicine_master')) {
+                $this->db->query("ALTER TABLE `medicine_master` ADD COLUMN `hindi_timing` VARCHAR(100) NULL DEFAULT NULL COMMENT 'Hindi timing instruction' AFTER `timing`");
+            }
+
+            if (!$this->db->field_exists('hindi_frequency', 'medicine_master')) {
+                $this->db->query("ALTER TABLE `medicine_master` ADD COLUMN `hindi_frequency` VARCHAR(100) NULL DEFAULT NULL COMMENT 'Hindi frequency instruction' AFTER `frequency`");
+            }
+
+            if (!$this->db->field_exists('hindi_duration_text', 'medicine_master')) {
+                $this->db->query("ALTER TABLE `medicine_master` ADD COLUMN `hindi_duration_text` VARCHAR(100) NULL DEFAULT NULL COMMENT 'Hindi duration instruction' AFTER `duration_text`");
+            }
+        }
     }
 
     public function seed_medicine_section()
@@ -3160,9 +3183,15 @@ class Patientflow_model extends CI_Model
      */
     public function get_patient_flow_history($patient_id, $limit = 10)
     {
-        $this->db->select('v.*, l.code AS level_code, l.title AS level_title');
+        $this->db->select('v.*, l.code AS level_code, l.title AS level_title,
+            p.patient_name, p.patient_uuid,
+            pfs.stage_code,
+            pf.code AS programme_code');
         $this->db->from('patient_flow_visits v');
+        $this->db->join('patients p', 'p.id = v.patient_id', 'left');
         $this->db->join('patient_flow_levels l', 'l.id = v.current_level_id', 'left');
+        $this->db->join('patient_flow_stage_assignment pfs', 'pfs.visit_id = v.id AND pfs.is_current = 1', 'left');
+        $this->db->join('patient_flow_programme pf', 'pf.code = v.ct_programme_id', 'left');
         $this->db->where('v.patient_id', (int)$patient_id);
         $this->db->order_by('v.id', 'desc');
         $this->db->limit($limit);
@@ -5859,7 +5888,8 @@ class Patientflow_model extends CI_Model
         $hide_name_roles = array('junior','reception','patient','doctor');
         $hide_name = in_array($role, $hide_name_roles, true);
         $this->db->select('p.*, m.code AS medicine_code, m.medicine_identity, m.series AS med_series,
-            m.route_method, m.patient_dose, m.timing, m.frequency, m.duration_text');
+            m.route_method, m.patient_dose, m.timing, m.frequency, m.duration_text,
+            m.hindi_route_method, m.hindi_patient_dose, m.hindi_timing, m.hindi_frequency, m.hindi_duration_text');
         $this->db->from('patient_flow_prescription p');
         $this->db->join('medicine_master m', 'm.id = p.medicine_id', 'left');
         $this->db->where('p.visit_id', $visit_id)->where('p.is_active', 1);
@@ -5881,6 +5911,11 @@ class Patientflow_model extends CI_Model
                 'timing' => (string) ($r->timing ?: ''),
                 'frequency' => (string) ($r->frequency ?: ''),
                 'duration_text' => (string) ($r->duration_text ?: ''),
+                'hindi_route_method' => (string) ($r->hindi_route_method ?: ''),
+                'hindi_patient_dose' => (string) ($r->hindi_patient_dose ?: ''),
+                'hindi_timing' => (string) ($r->hindi_timing ?: ''),
+                'hindi_frequency' => (string) ($r->hindi_frequency ?: ''),
+                'hindi_duration_text' => (string) ($r->hindi_duration_text ?: ''),
                 'variant' => (int) $r->variant, 'prescribed_by' => (int) $r->prescribed_by,
                 'prescribed_at' => (string) $r->prescribed_at,
                 'clinical_approval' => (string) $r->clinical_approval,
