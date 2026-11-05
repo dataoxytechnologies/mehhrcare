@@ -1140,6 +1140,27 @@ class Patientflow extends Admin_Controller
                 $role_id
             );
 
+            // If programme status is declined/deferred, complete the visit and
+            // free the token so its number can be reused by the next patient.
+            if (!empty($result['status']) && in_array($status, array('declined', 'deferred'), true)) {
+                $this->patientflow_model->update_visit($visit_id, array(
+                    'status'         => 'completed',
+                    'completed_at'   => date('Y-m-d H:i:s'),
+                    'completed_by'   => $this->customlib->getStaffID(),
+                ));
+                $visit_after = $this->patientflow_model->get_visit($visit_id);
+                if (!empty($visit_after->token_no)
+                    && !in_array($visit_after->token_status, array('CLOSED', 'NO_SHOW', 'SKIPPED'), true)) {
+                    $this->patientflow_model->set_token_status(
+                        $visit_id,
+                        'CLOSED',
+                        $this->customlib->getStaffID(),
+                        null,
+                        'Programme status set to ' . $status
+                    );
+                }
+            }
+
             if ($this->input->is_ajax_request()) {
                 header('Content-Type: application/json');
                 echo json_encode($result);
@@ -2058,7 +2079,20 @@ class Patientflow extends Admin_Controller
         $data['visit']            = $visit;
         $data['patient']          = (array) $visit;
         $data['payment_ref']      = $ref;
-        $data['total_amount']     = 0; // will be set based on visit charges
+        // Fetch the programme bill amount for this visit's invoice.
+        $total_amount = 0;
+        if (!empty($visit->invoice_no) && $this->db->table_exists('patient_flow_fee_invoice')) {
+            $inv = $this->db
+                ->select('grand_total')
+                ->where('invoice_type', 'PROGRAMME')
+                ->where('invoice_no', trim((string) $visit->invoice_no))
+                ->get('patient_flow_fee_invoice')
+                ->row();
+            if ($inv) {
+                $total_amount = (float) ($inv->grand_total ?: 0);
+            }
+        }
+        $data['total_amount']     = $total_amount;
         $data['currency_symbol']  = $this->customlib->getHospitalCurrencyFormat();
         $data['patient_name']     = $visit->patient_name;
         $data['visit_no']         = $visit->visit_no;
@@ -2536,13 +2570,7 @@ class Patientflow extends Admin_Controller
         }
 
         // Get patient's visit history
-        $history = $this->patientflow_model->get_visits(null, null, 50);
-        $patient_history = array();
-        foreach ($history as $h) {
-            if ($h->patient_id == $visit->patient_id) {
-                $patient_history[] = $h;
-            }
-        }
+        $patient_history = $this->patientflow_model->get_patient_flow_history($visit->patient_id, 50);
 
         // Get OPD details if exists
         $opd_details = null;

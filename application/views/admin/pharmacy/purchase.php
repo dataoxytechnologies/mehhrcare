@@ -9,6 +9,9 @@ $genderList = $this->customlib->getGender();
                         <h3 class="card-title titlefix"><?php echo $this->lang->line('medicine_purchase_list'); ?></h3>
                         <div class="d-flex gap-2 align-items-center flex-wrap float-end">
                             <?php if ($this->rbac->hasPrivilege('medicine_purchase', 'can_add')) { ?>
+                                <a href="<?php echo base_url(); ?>admin/purchaseImport" class="btn btn-primary btn-sm"><i class="fa fa-plus"></i> <?php echo $this->lang->line('import'); ?></a> 
+                            <?php } ?>
+                            <?php if ($this->rbac->hasPrivilege('medicine_purchase', 'can_add')) { ?>
                                 <a data-bs-toggle="modal" onclick="holdModal('myModal')" class="btn btn-primary btn-sm addpurchase"><i class="fa fa-plus"></i> <?php echo $this->lang->line('purchase_medicine'); ?></a> 
                             <?php } ?>
                         </div>

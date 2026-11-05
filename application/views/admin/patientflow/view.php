@@ -140,7 +140,7 @@ $currency_symbol = $this->customlib->getHospitalCurrencyFormat();
 
         <!-- Patient Information -->
         <div class="row">
-            <div class="col-md-6">
+            <div class="col-md-4">
                 <div class="card card-outline card-info">
                     <div class="card-header">
                         <h5 class="card-title mb-0"><i class="fa fa-user"></i> Patient Information</h5>
@@ -185,7 +185,7 @@ $currency_symbol = $this->customlib->getHospitalCurrencyFormat();
             </div>
 
             <!-- Current Visit Information -->
-            <div class="col-md-6">
+            <div class="col-md-4">
                 <div class="card card-outline card-primary">
                     <div class="card-header">
                         <h5 class="card-title mb-0"><i class="fa fa-clock-o"></i> Current Visit Details</h5>
@@ -242,13 +242,11 @@ $currency_symbol = $this->customlib->getHospitalCurrencyFormat();
                     </div>
                 </div>
             </div>
-        </div>
 
 <!-- OPD Details -->
         <?php if (isset($opd_details) && !empty($opd_details)): ?>
-        <?php $cs = !empty($opd_details->currency_symbol) ? $opd_details->currency_symbol : $currency_symbol; ?>
-        <div class="row mt-3">
-            <div class="col-12">
+            <?php $cs = !empty($opd_details->currency_symbol) ? $opd_details->currency_symbol : $currency_symbol; ?>
+            <div class="col-4">
                 <div class="card card-outline card-success">
                     <div class="card-header">
                         <h5 class="card-title mb-0"><i class="fa fa-stethoscope"></i> OPD Details</h5>
@@ -300,7 +298,7 @@ $currency_symbol = $this->customlib->getHospitalCurrencyFormat();
                                 </table>
                             </div>
                         </div>
-<?php if (!empty($opd_details->symptoms)): ?>
+                    <?php if (!empty($opd_details->symptoms)): ?>
                         <div class="row mt-2">
                             <div class="col-12">
                                 <table class="table table-bordered table-striped table-sm">
@@ -326,7 +324,7 @@ $currency_symbol = $this->customlib->getHospitalCurrencyFormat();
                         </div>
                         <?php endif; ?>
 
-                        <div class="row mt-2">
+                        <!-- <div class="row mt-2">
                             <div class="col-12">
                                 <table class="table table-bordered table-sm">
                                     <tr>
@@ -335,10 +333,10 @@ $currency_symbol = $this->customlib->getHospitalCurrencyFormat();
                                     </tr>
                                 </table>
                             </div>
-                        </div>
+                        </div> -->
 
                         <?php if (isset($opd_details->charges) && !empty($opd_details->charges)): ?>
-                        <div class="mt-3">
+                        <!-- <div class="mt-3">
                             <h6>OPD Charges (from patient_charges)</h6>
                             <table class="table table-bordered table-sm">
                                 <thead>
@@ -369,17 +367,76 @@ $currency_symbol = $this->customlib->getHospitalCurrencyFormat();
                                     </tr>
                                 </tfoot>
                             </table>
-                        </div>
+                        </div> -->
                         <?php endif; ?>
                     </div>
                 </div>
             </div>
+            <?php endif; ?>
         </div>
-        <?php endif; ?>
 
-        <!-- Flow Timeline / Logs -->
         <div class="row mt-3">
-            <div class="col-12">
+            <div class="col-8">
+                        
+                <!-- Patient Visit History -->
+                <?php if (isset($history) && !empty($history)): ?>
+                    <div class="card card-outline card-light">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0"><i class="fa fa-list"></i> Patient's Visit History</h5>
+                        </div>
+                        <div class="card-body table-responsive">
+                            <table class="table table-bordered table-striped table-hover table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>Token</th>
+                                        <th>Patient</th>
+                                        <th>PBHP ID</th>
+                                        <th>Current Level</th>
+                                        <th>Stage</th>
+                                        <th>Payment</th>
+                                        <th>Programme Status</th>
+                                        <th>Programme</th>
+                                        <th>Approval</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php foreach ($history as $h): ?>
+                                    <?php if ($h->id != $visit->id): ?>
+                                    <tr>
+                                        <td><?php echo isset($h->token_no) ? $h->token_no : '—'; ?></td>
+                                        <td>
+                                            <?php echo isset($h->patient_name) ? htmlspecialchars($h->patient_name) : 'N/A'; ?>
+                                            <?php if (isset($h->patient_uuid)): ?>
+                                            <br><small class="text-muted"><?php echo htmlspecialchars($h->patient_uuid); ?></small>
+                                            <?php endif; ?>
+                                        </td>
+                                        <td><?php echo isset($h->pbhp_id) ? $h->pbhp_id : '—'; ?></td>
+                                        <td><span class="badge bg-info-subtle text-info-emphasis"><?php echo isset($h->level_code) ? $h->level_code : 'N/A'; ?></span> <?php echo isset($h->level_title) ? $h->level_title : 'N/A'; ?></td>
+                                        <td><span class="badge bg-secondary-subtle text-secondary-emphasis"><?php echo isset($h->stage_code) ? $h->stage_code : '—'; ?></span></td>
+                                        <td>
+                                            <span class="badge <?php echo (isset($h->payment_status) && $h->payment_status == 'paid') ? 'bg-success-subtle text-success-emphasis' : 'bg-warning-subtle text-warning-emphasis'; ?>">
+                                            <?php echo isset($h->payment_status) ? ucfirst($h->payment_status) : 'Pending'; ?>
+                                            </span>
+                                        </td>
+                                        <td><span class="badge bg-secondary-subtle text-secondary-emphasis"><?php echo isset($h->programme_status) ? ucfirst($h->programme_status) : '—'; ?></span></td>
+                                        <td><?php echo isset($h->programme_code) ? $h->programme_code : (isset($h->ct_programme_id) ? $h->ct_programme_id : '—'); ?></td>
+                                        <td>
+                                            <span class="badge <?php echo (isset($h->approve_status) && $h->approve_status == 'approved') ? 'bg-success-subtle text-success-emphasis' : 'bg-secondary-subtle text-secondary-emphasis'; ?>">
+                                            <?php echo isset($h->approve_status) ? ucfirst($h->approve_status) : 'Pending'; ?>
+                                            </span>
+                                        </td>
+                                    </tr>
+                                    <?php endif; ?>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                <?php endif; ?>
+
+            </div>
+            <!-- Flow Timeline / Logs -->
+            <div class="col-4">
                 <div class="card card-outline card-secondary">
                     <div class="card-header">
                         <h5 class="card-title mb-0">
@@ -517,61 +574,6 @@ $currency_symbol = $this->customlib->getHospitalCurrencyFormat();
                 </div>
             </div>
         </div>
-
-        <!-- Patient Visit History -->
-        <?php if (isset($history) && !empty($history)): ?>
-        <div class="row mt-3">
-            <div class="col-12">
-                <div class="card card-outline card-light">
-                    <div class="card-header">
-                        <h5 class="card-title mb-0"><i class="fa fa-list"></i> Patient's Visit History</h5>
-                    </div>
-                    <div class="card-body table-responsive">
-                        <table class="table table-bordered table-striped table-hover table-sm">
-                            <thead>
-                                <tr>
-                                    <th>Visit No</th>
-                                    <th>Level</th>
-                                    <th>Date</th>
-                                    <th>Amount</th>
-                                    <th>Payment</th>
-                                    <th>Status</th>
-                                    <th>Action</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php foreach ($history as $h): ?>
-                                <?php if ($h->id != $visit->id): ?>
-                                <tr>
-                                    <td><?php echo isset($h->visit_no) ? $h->visit_no : 'N/A'; ?></td>
-                                    <td><span class="badge bg-info-subtle text-info-emphasis"><?php echo isset($h->level_code) ? $h->level_code : 'N/A'; ?></span> <?php echo isset($h->level_title) ? $h->level_title : 'N/A'; ?></td>
-                                    <td><?php echo isset($h->created_at) ? date('d-m-Y', strtotime($h->created_at)) : 'N/A'; ?></td>
-                                    <td><?php echo $currency_symbol . ' ' . (isset($h->amount) ? number_format($h->amount, 2) : '0.00'); ?></td>
-                                    <td>
-                                        <span class="badge <?php echo (isset($h->payment_status) && $h->payment_status == 'paid') ? 'bg-success-subtle text-success-emphasis' : 'bg-warning-subtle text-warning-emphasis'; ?>">
-                                            <?php echo isset($h->payment_status) ? ucfirst($h->payment_status) : 'Pending'; ?>
-                                        </span>
-                                    </td>
-                                    <td>
-                                        <span class="badge <?php echo (isset($h->approve_status) && $h->approve_status == 'approved') ? 'bg-success-subtle text-success-emphasis' : 'bg-secondary-subtle text-secondary-emphasis'; ?>">
-                                            <?php echo isset($h->approve_status) ? ucfirst($h->approve_status) : 'Pending'; ?>
-                                        </span>
-                                    </td>
-                                    <td>
-                                        <a href="<?php echo site_url('admin/patientflow/view/' . $h->id); ?>" class="btn btn-sm btn-outline-primary">
-                                            <i class="fa fa-eye"></i> View
-                                        </a>
-                                    </td>
-                                </tr>
-                                <?php endif; ?>
-                                <?php endforeach; ?>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <?php endif; ?>
 
         <!-- Billing Information (if R2 level) -->
         <?php if ($can_manage_billing): ?>

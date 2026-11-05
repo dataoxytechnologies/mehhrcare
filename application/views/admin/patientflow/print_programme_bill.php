@@ -278,6 +278,18 @@
                         <td><?php echo htmlspecialchars((string) ($med['frequency'] ?: '—')); ?></td>
                         <td><?php echo htmlspecialchars((string) ($med['duration_text'] ?: '—')); ?></td>
                     </tr>
+                    <?php if (!empty($med['hindi_patient_dose']) || !empty($med['hindi_route_method']) || !empty($med['hindi_timing']) || !empty($med['hindi_frequency']) || !empty($med['hindi_duration_text'])): ?>
+                    <tr style="font-size:0.85rem; color:#6c757d; background:#f8f9fa;">
+                        <td colspan="9" style="padding-left:1rem;">
+                            <strong>हिन्दी:</strong>
+                            <?php if (!empty($med['hindi_patient_dose'])): echo 'डोज़: ' . htmlspecialchars($med['hindi_patient_dose']) . '; '; endif; ?>
+                            <?php if (!empty($med['hindi_route_method'])): echo 'मार्ग: ' . htmlspecialchars($med['hindi_route_method']) . '; '; endif; ?>
+                            <?php if (!empty($med['hindi_timing'])): echo 'समय: ' . htmlspecialchars($med['hindi_timing']) . '; '; endif; ?>
+                            <?php if (!empty($med['hindi_frequency'])): echo 'आवृत्ति: ' . htmlspecialchars($med['hindi_frequency']) . '; '; endif; ?>
+                            <?php if (!empty($med['hindi_duration_text'])): echo 'अवधि: ' . htmlspecialchars($med['hindi_duration_text']); endif; ?>
+                        </td>
+                    </tr>
+                    <?php endif; ?>
                 <?php endforeach; ?>
             </tbody>
         </table>

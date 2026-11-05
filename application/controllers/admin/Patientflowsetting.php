@@ -759,7 +759,7 @@ class Patientflowsetting extends Admin_Controller
             redirect('admin/patientflowsetting/setting?group=medicine_master');
             return;
         }
-        $fields = array('code', 'medicine_identity', 'series', 'gp_code', 'indication', 'purpose', 'patient_dose', 'route_method', 'timing', 'frequency', 'duration_text', 'dispensing_qty_ml', 'container_vial', 'stock_deduction_ml', 'use_note', 'control_note', 'supply_status', 'status');
+        $fields = array('code', 'medicine_identity', 'series', 'gp_code', 'indication', 'purpose', 'patient_dose', 'route_method', 'timing', 'frequency', 'duration_text', 'hindi_patient_dose', 'hindi_route_method', 'hindi_timing', 'hindi_frequency', 'hindi_duration_text', 'dispensing_qty_ml', 'container_vial', 'stock_deduction_ml', 'use_note', 'control_note', 'supply_status', 'status');
         $data = array();
         foreach ($fields as $fl) {
             $data[$fl] = trim((string) $this->input->post($fl, false));

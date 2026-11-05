@@ -1,0 +1,4 @@
+invoice_no,date,supplier,payment_mode,cheque_no,cheque_date,payment_note,note,medicine_category,medicine_name,batch_no,expiry,mrp,batch_amount,sale_rate,packing_qty,quantity,purchase_price,tax,amount
+INV-2024-001,2024-01-15,tset,cash,,,,,Default,Eupatorium perfoliatum Q,BATCH001,12/2026,10.00,5000.00,12.00,1,100,5.00,0,500.00
+INV-2024-001,2024-01-15,tset,cash,,,,,Default,Viburnum opulus Q,BATCH002,06/2027,15.00,7500.00,18.00,1,100,7.50,0,750.00
+INV-2024-002,2024-01-16,tset,cash,,,,,Default,Salix nigra Q,SYR001,03/2027,25.00,2500.00,30.00,1,50,10.00,0,500.00
