@@ -92,9 +92,10 @@
             width: 100%;
             border-collapse: collapse;
             margin-top: 8px;
+            border: 1px solid #dee2e6;
         }
         th, td {
-            border-top: 1px solid #dee2e6;
+            border: 1px solid #dee2e6;
             padding: 5px 4px;
             text-align: left;
             font-size: 11px;
@@ -175,6 +176,7 @@
                 <?php } ?>
                 <div><span class="label">Phone</span><span class="value"><?php echo htmlspecialchars((string) ($visit->mobileno ?? 'N/A')); ?></span></div>
                 <div><span class="label">Patient UID</span><span class="value"><?php echo htmlspecialchars((string) ($visit->patient_uuid ?? 'N/A')); ?></span></div>
+                <div><span class="label">Visit Type</span><span class="value"><?php echo htmlspecialchars((string) ($visit->visit_type ?? 'single')); ?></span></div>
             </div>
             <div class="card">
                 <div><span class="label">Visit No</span><span class="value"><?php echo htmlspecialchars((string) ($visit->visit_no ?? 'N/A')); ?></span></div>
@@ -195,8 +197,68 @@
                 <div class="col-md-6"><strong>Payment Mode:</strong> <?php echo htmlspecialchars((string) (($benefit_meta['payment_mode'] ?? '') ?: ($schedule->unit_type ?? 'MILESTONE'))); ?></div>
             </div>
         </div>
+        
+        <table style="margin-top:18px;">
+            <thead>
+                <tr>
+                    <th>Description</th>
+                    <th>Qty</th>
+                    <th>Amount</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php foreach ($lines as $line): ?>
+                    <tr>
+                        <td><?php echo htmlspecialchars((string) ($line->description ?: 'Programme Billing')); ?></td>
+                        <td><?php echo htmlspecialchars((string) ($line->qty ?: '1')); ?></td>
+                        <td><?php echo $currency_symbol . ' ' . number_format((float) ($line->taxable_amount ?: $line->unit_amount), 2); ?></td>
+                    </tr>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
 
-        <table>
+        <?php if (!empty($prescriptions)): ?>
+            <table width="100%" height="100%" cellpadding="3" cellspacing="0" border="1">
+                <thead>
+                    <tr>
+                        <th colspan="2">Medicine &amp; Dosage</th>
+                        <th>हिन्दी</th>
+                    </tr>
+                    <tr>
+                        <th>Medicine</th>
+                        <th>English Details</th>
+                        <th>Dose</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($prescriptions as $med): ?>
+                        <tr>
+                            <td>
+                                <strong>
+                                    <?php echo htmlspecialchars((string) ($med['medicine_identity'] ?: $med['medicine_code'] ?: 'Medicine')); ?>
+                                </strong>
+                            </td>
+                            <td>
+                                <?php if (!empty($med['route_method'])): echo 'Route: ' . htmlspecialchars($med['route_method']) . '; '; endif; ?>
+                                <?php if (!empty($med['patient_dose'])): echo 'Dose: ' . htmlspecialchars($med['patient_dose']) . '; '; endif; ?>
+                                <?php if (!empty($med['timing'])): echo 'Timing: ' . htmlspecialchars($med['timing']) . '; '; endif; ?>
+                                <?php if (!empty($med['frequency'])): echo 'Frequency: ' . htmlspecialchars($med['frequency']) . '; '; endif; ?>
+                                <?php if (!empty($med['duration_text'])): echo 'Duration: ' . htmlspecialchars($med['duration_text']); endif; ?>
+                            </td>
+                            <td>
+                                <?php if (!empty($med['hindi_patient_dose'])): echo 'डोज़: ' . htmlspecialchars($med['hindi_patient_dose']) . '; '; endif; ?>
+                                <?php if (!empty($med['hindi_route_method'])): echo 'मार्ग: ' . htmlspecialchars($med['hindi_route_method']) . '; '; endif; ?>
+                                <?php if (!empty($med['hindi_timing'])): echo 'समय: ' . htmlspecialchars($med['hindi_timing']) . '; '; endif; ?>
+                                <?php if (!empty($med['hindi_frequency'])): echo 'आवृत्ति: ' . htmlspecialchars($med['hindi_frequency']) . '; '; endif; ?>
+                                <?php if (!empty($med['hindi_duration_text'])): echo 'अवधि: ' . htmlspecialchars($med['hindi_duration_text']); endif; ?>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        <?php endif; ?>
+
+        <table width="100%" height="100%" cellpadding="3" cellspacing="0" border="1">
             <thead>
                 <tr>
                     <th>Breakdown</th>
@@ -231,25 +293,6 @@
             </tbody>
         </table>
 
-        <table style="margin-top:18px;">
-            <thead>
-                <tr>
-                    <th>Description</th>
-                    <th>Qty</th>
-                    <th>Amount</th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php foreach ($lines as $line): ?>
-                    <tr>
-                        <td><?php echo htmlspecialchars((string) ($line->description ?: 'Programme Billing')); ?></td>
-                        <td><?php echo htmlspecialchars((string) ($line->qty ?: '1')); ?></td>
-                        <td><?php echo $currency_symbol . ' ' . number_format((float) ($line->taxable_amount ?: $line->unit_amount), 2); ?></td>
-                    </tr>
-                <?php endforeach; ?>
-            </tbody>
-        </table>
-
         <?php if (!empty($prescriptions)): ?>
         <table style="margin-top:18px;">
             <thead>
@@ -278,18 +321,6 @@
                         <td><?php echo htmlspecialchars((string) ($med['frequency'] ?: '—')); ?></td>
                         <td><?php echo htmlspecialchars((string) ($med['duration_text'] ?: '—')); ?></td>
                     </tr>
-                    <?php if (!empty($med['hindi_patient_dose']) || !empty($med['hindi_route_method']) || !empty($med['hindi_timing']) || !empty($med['hindi_frequency']) || !empty($med['hindi_duration_text'])): ?>
-                    <tr style="font-size:0.85rem; color:#6c757d; background:#f8f9fa;">
-                        <td colspan="9" style="padding-left:1rem;">
-                            <strong>हिन्दी:</strong>
-                            <?php if (!empty($med['hindi_patient_dose'])): echo 'डोज़: ' . htmlspecialchars($med['hindi_patient_dose']) . '; '; endif; ?>
-                            <?php if (!empty($med['hindi_route_method'])): echo 'मार्ग: ' . htmlspecialchars($med['hindi_route_method']) . '; '; endif; ?>
-                            <?php if (!empty($med['hindi_timing'])): echo 'समय: ' . htmlspecialchars($med['hindi_timing']) . '; '; endif; ?>
-                            <?php if (!empty($med['hindi_frequency'])): echo 'आवृत्ति: ' . htmlspecialchars($med['hindi_frequency']) . '; '; endif; ?>
-                            <?php if (!empty($med['hindi_duration_text'])): echo 'अवधि: ' . htmlspecialchars($med['hindi_duration_text']); endif; ?>
-                        </td>
-                    </tr>
-                    <?php endif; ?>
                 <?php endforeach; ?>
             </tbody>
         </table>

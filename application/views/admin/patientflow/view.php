@@ -376,7 +376,7 @@ $currency_symbol = $this->customlib->getHospitalCurrencyFormat();
         </div>
 
         <div class="row mt-3">
-            <div class="col-8">
+            <div class="col-12">
                         
                 <!-- Patient Visit History -->
                 <?php if (isset($history) && !empty($history)): ?>
@@ -393,6 +393,12 @@ $currency_symbol = $this->customlib->getHospitalCurrencyFormat();
                                         <th>PBHP ID</th>
                                         <th>Current Level</th>
                                         <th>Stage</th>
+                                        <th>Case Type</th>
+                                        <th>Primary Concern</th>
+                                        <th>Duration</th>
+                                        <th>Constitution</th>
+                                        <th>Assessment</th>
+                                        <th>Status</th>
                                         <th>Payment</th>
                                         <th>Programme Status</th>
                                         <th>Programme</th>
@@ -413,13 +419,21 @@ $currency_symbol = $this->customlib->getHospitalCurrencyFormat();
                                         <td><?php echo isset($h->pbhp_id) ? $h->pbhp_id : '—'; ?></td>
                                         <td><span class="badge bg-info-subtle text-info-emphasis"><?php echo isset($h->level_code) ? $h->level_code : 'N/A'; ?></span> <?php echo isset($h->level_title) ? $h->level_title : 'N/A'; ?></td>
                                         <td><span class="badge bg-secondary-subtle text-secondary-emphasis"><?php echo isset($h->stage_code) ? $h->stage_code : '—'; ?></span></td>
+                                        <td><?php echo isset($h->case_taking_type) ? htmlspecialchars($h->case_taking_type) : '—'; ?></td>
+                                        <td><?php echo isset($h->ct_primary_concern) ? htmlspecialchars($h->ct_primary_concern) : '—'; ?></td>
+                                        <td><?php echo isset($h->ct_concern_duration) ? htmlspecialchars($h->ct_concern_duration) : '—'; ?></td>
+                                        <td>
+                                            <?php echo isset($h->ct_constitution_code) ? htmlspecialchars($h->ct_constitution_code) : '—'; ?>
+                                        </td>
+                                        <td><?php echo isset($h->ct_assessment_certainty) ? htmlspecialchars($h->ct_assessment_certainty) : '—'; ?></td>
+                                        <td><span class="badge bg-secondary-subtle text-secondary-emphasis"><?php echo isset($h->ct_status) ? ucfirst($h->ct_status) : '—'; ?></span></td>
                                         <td>
                                             <span class="badge <?php echo (isset($h->payment_status) && $h->payment_status == 'paid') ? 'bg-success-subtle text-success-emphasis' : 'bg-warning-subtle text-warning-emphasis'; ?>">
                                             <?php echo isset($h->payment_status) ? ucfirst($h->payment_status) : 'Pending'; ?>
                                             </span>
                                         </td>
                                         <td><span class="badge bg-secondary-subtle text-secondary-emphasis"><?php echo isset($h->programme_status) ? ucfirst($h->programme_status) : '—'; ?></span></td>
-                                        <td><?php echo isset($h->programme_code) ? $h->programme_code : (isset($h->ct_programme_id) ? $h->ct_programme_id : '—'); ?></td>
+                                        <td><?php echo isset($h->programme_name) ? $h->programme_name : (isset($h->ct_programme_id) ? $h->ct_programme_id : '—'); ?></td>
                                         <td>
                                             <span class="badge <?php echo (isset($h->approve_status) && $h->approve_status == 'approved') ? 'bg-success-subtle text-success-emphasis' : 'bg-secondary-subtle text-secondary-emphasis'; ?>">
                                             <?php echo isset($h->approve_status) ? ucfirst($h->approve_status) : 'Pending'; ?>
@@ -436,7 +450,7 @@ $currency_symbol = $this->customlib->getHospitalCurrencyFormat();
 
             </div>
             <!-- Flow Timeline / Logs -->
-            <div class="col-4">
+            <div class="col-4 d-none">
                 <div class="card card-outline card-secondary">
                     <div class="card-header">
                         <h5 class="card-title mb-0">
@@ -497,7 +511,7 @@ $currency_symbol = $this->customlib->getHospitalCurrencyFormat();
                                     data-bs-parent="#flowTimelineAccordion">
                                     <div class="accordion-body">
                                         <div class="row">
-                                            <div class="col-md-6">
+                                            <div class="col-md-12">
                                                 <table class="table table-sm table-borderless mb-0">
                                                     <tr>
                                                         <td width="30%"><strong>Action</strong></td>
@@ -535,7 +549,7 @@ $currency_symbol = $this->customlib->getHospitalCurrencyFormat();
                                                     <?php endif; ?>
                                                 </table>
                                             </div>
-                                            <div class="col-md-6">
+                                            <div class="col-md-12">
                                                 <table class="table table-sm table-borderless mb-0">
                                                     <tr>
                                                         <td width="30%"><strong>Performed By</strong></td>

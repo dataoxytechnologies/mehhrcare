@@ -183,7 +183,7 @@ if (!empty($medicines)): ?>
                 </td>
                 <td style="width: 23%; text-align: center;">
                     <span class="label-key">Stage:</span>
-                    <span class="label-value"><?php echo htmlspecialchars((string) $med['series']); ?></span>
+                    <span class="label-value"><?php echo htmlspecialchars((string) ($visit->stage_code ?: '—')); ?></span>
                 </td>
                 <td style="width: 22%; text-align: right;">
                     <span class="label-key">Vial:</span>

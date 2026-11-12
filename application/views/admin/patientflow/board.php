@@ -651,11 +651,11 @@ if (!function_exists('pf_ct_age_label')) {
                                       <?php } ?>
 
 
-                                    <button class="btn btn-sm btn-outline-info w-100" type="button"
+                                    <!-- <button class="btn btn-sm btn-outline-info w-100" type="button"
                                             data-bs-toggle="collapse" data-bs-target="#pfLogs<?php echo $v->id; ?>"
                                             aria-expanded="false" aria-controls="pfLogs<?php echo $v->id; ?>">
                                         <i class="fa fa-history"></i> &nbsp;<?php echo $this->lang->line('history') ?: 'History'; ?>
-                                    </button>
+                                    </button> -->
                                      <?php
                                      $pf_ct_arr = array(
                                           'case_taking_type'        => (string) $v->case_taking_type,

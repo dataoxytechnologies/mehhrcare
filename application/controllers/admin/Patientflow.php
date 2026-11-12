@@ -3302,6 +3302,10 @@ foreach ($slots as $pfx => $label) {
             return;
         }
 
+        // Fetch current stage code for the visit
+        $stage = $this->patientflow_model->get_stage_from_visit($visit_id);
+        $visit->stage_code = isset($stage['stage_code']) ? $stage['stage_code'] : '—';
+
         $medicines = $this->patientflow_model->get_visit_medicines_for_label($visit_id);
 // echo '<pre>';
 // print_r($medicines);
