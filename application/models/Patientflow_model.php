@@ -3186,12 +3186,16 @@ class Patientflow_model extends CI_Model
         $this->db->select('v.*, l.code AS level_code, l.title AS level_title,
             p.patient_name, p.patient_uuid,
             pfs.stage_code,
-            pf.code AS programme_code');
+            pf.name AS programme_name,
+            v.case_taking_type, v.case_taking_description, v.case_taking_at,
+            v.ct_primary_concern, v.ct_concern_duration, v.ct_status,
+            v.ct_assessment_certainty, v.ct_bod1, v.ct_fsh1, v.ct_nos1,
+            v.ct_constitution_code');
         $this->db->from('patient_flow_visits v');
         $this->db->join('patients p', 'p.id = v.patient_id', 'left');
         $this->db->join('patient_flow_levels l', 'l.id = v.current_level_id', 'left');
         $this->db->join('patient_flow_stage_assignment pfs', 'pfs.visit_id = v.id AND pfs.is_current = 1', 'left');
-        $this->db->join('patient_flow_programme pf', 'pf.code = v.ct_programme_id', 'left');
+        $this->db->join('patient_flow_programme pf', 'pf.id = v.ct_programme_id', 'left');
         $this->db->where('v.patient_id', (int)$patient_id);
         $this->db->order_by('v.id', 'desc');
         $this->db->limit($limit);
