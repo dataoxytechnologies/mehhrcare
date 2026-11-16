@@ -85,6 +85,11 @@ class Patientflow_model extends CI_Model
             if (!$this->db->field_exists('cash_received', 'patient_flow_visits')) {
                 $this->db->query("ALTER TABLE `patient_flow_visits` ADD COLUMN `cash_received` TINYINT(1) NOT NULL DEFAULT 0 COMMENT '0 = not received | 1 = received' AFTER `token_closed_at`");
             }
+            // Payment mode: how the programme bill was settled (Cash / Online).
+            // Populated by mark_paid() (Cash) and razorpay_callback() (Online).
+            if (!$this->db->field_exists('payment_mode', 'patient_flow_visits')) {
+                $this->db->query("ALTER TABLE `patient_flow_visits` ADD COLUMN `payment_mode` VARCHAR(20) NULL DEFAULT NULL COMMENT 'Cash | Online | Razorpay — how the programme bill was settled' AFTER `cash_received`");
+            }
             // Programme status: enroll | declined | deferred.
             // Only a staff whose level has can_change_programme_status may change it.
             if (!$this->db->field_exists('programme_status', 'patient_flow_visits')) {
@@ -1616,7 +1621,7 @@ class Patientflow_model extends CI_Model
      * @param int    $role_id
      * @return array ['status'=>bool, 'message'=>string]
      */
-    public function set_payment_status($visit_id, $payment_status, $staff_id, $role_id, $generate_token = true)
+    public function set_payment_status($visit_id, $payment_status, $staff_id, $role_id, $generate_token = true, $payment_mode = null)
     {
         $visit = $this->get_visit($visit_id);
         if (!$visit) {
@@ -1650,9 +1655,11 @@ class Patientflow_model extends CI_Model
         }
 
         $this->db->where('id', $visit_id);
-        $this->db->update('patient_flow_visits', array(
-            'payment_status' => $status,
-        ));
+        $visit_update = array('payment_status' => $status);
+        if ($payment_mode !== null) {
+            $visit_update['payment_mode'] = trim((string) $payment_mode);
+        }
+        $this->db->update('patient_flow_visits', $visit_update);
 
         if (!empty($token_data)) {
             $this->db->where('id', $visit_id);
@@ -6845,6 +6852,36 @@ class Patientflow_model extends CI_Model
                 ));
         }
         return array('status' => true, 'message' => 'Consultation invoice generated.', 'invoice_id' => $invoice_id, 'invoice_no' => $inv['invoice_no'], 'grand_total' => $item->base_amount);
+    }
+
+    /**
+     * Get the payable amount for a visit's programme bill.
+     * Looks up patient_flow_fee_invoice where invoice_type='PROGRAMME' and
+     * invoice_no matches the visit's invoice_no.
+     *
+     * @param int $visit_id
+     * @return float
+     */
+    public function getProgrammeBillAmount($visit_id)
+    {
+        $visit_id = (int) $visit_id;
+        if ($visit_id <= 0 || !$this->db->table_exists('patient_flow_fee_invoice')) {
+            return 0.0;
+        }
+        $visit = $this->get_visit($visit_id);
+        if (!$visit || empty($visit->invoice_no)) {
+            return 0.0;
+        }
+        $inv = $this->db
+            ->select('grand_total')
+            ->where('invoice_type', 'PROGRAMME')
+            ->where('invoice_no', trim((string) $visit->invoice_no))
+            ->get('patient_flow_fee_invoice')
+            ->row();
+        if (!$inv) {
+            return 0.0;
+        }
+        return (float) ($inv->grand_total ?: 0);
     }
 
     /**

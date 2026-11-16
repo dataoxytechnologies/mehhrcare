@@ -16,10 +16,10 @@ $currency_symbol = $this->customlib->getHospitalCurrencyFormat();
                         <li class="nav-item"><a class="nav-link" href="#tab_3" data-bs-toggle="tab"><?php echo $this->lang->line('payu'); ?></a></li>
                         <li class="nav-item"><a class="nav-link" href="#tab_14" data-bs-toggle="tab"><?php echo $this->lang->line('ccavenue'); ?></a></li>
                         <li class="nav-item"><a class="nav-link" href="#tab_5" data-bs-toggle="tab"><?php echo $this->lang->line('instamojo'); ?></a></li>
-                        <li class="nav-item"><a class="nav-link" href="#tab_6" data-bs-toggle="tab"><?php echo $this->lang->line('paystack'); ?></a></li>
-                        <li class="nav-item"><a class="nav-link" href="#tab_7" data-bs-toggle="tab"><?php echo $this->lang->line('razorpay'); ?></a></li> -->
-                        <li class="nav-item"><a class="nav-link" href="#tab_8" data-bs-toggle="tab"><?php echo $this->lang->line('paytm'); ?></a></li>
-                        <!-- <li class="nav-item"><a class="nav-link" href="#tab_9" data-bs-toggle="tab"><?php echo $this->lang->line('midtrans'); ?></a></li>
+                        <li class="nav-item"><a class="nav-link" href="#tab_6" data-bs-toggle="tab"><?php echo $this->lang->line('paystack'); ?></a></li> -->
+                        <li class="nav-item"><a class="nav-link" href="#tab_7" data-bs-toggle="tab"><?php echo $this->lang->line('razorpay'); ?></a></li>
+                        <!-- <li class="nav-item"><a class="nav-link" href="#tab_8" data-bs-toggle="tab"><?php echo $this->lang->line('paytm'); ?></a></li>
+                        <li class="nav-item"><a class="nav-link" href="#tab_9" data-bs-toggle="tab"><?php echo $this->lang->line('midtrans'); ?></a></li>
                         <li class="nav-item"><a class="nav-link" href="#tab_10" data-bs-toggle="tab"><?php echo $this->lang->line('pesapal'); ?></a></li>
                         <li class="nav-item"><a class="nav-link" href="#tab_15" data-bs-toggle="tab"><?php echo $this->lang->line('flutter_wave'); ?></a></li>    
                         <li class="nav-item"><a class="nav-link" href="#tab_11" data-bs-toggle="tab"><?php echo $this->lang->line('ipay_africa'); ?></a></li>
@@ -399,7 +399,7 @@ $currency_symbol = $this->customlib->getHospitalCurrencyFormat();
                             </form>
                         </div>
                         <!-- /.tab-pane -->
-                        <div class="tab-pane" id="tab_7">
+                        <div class="tab-pane active show" id="tab_7">
                             <form role="form" id="razorpay" action="<?php echo site_url('admin/paymentsettings/razorpay') ?>" method="post">
                                 <?php $razorpay_result = check_in_array('razorpay', $paymentlist); ?>
                                 <div class="p-3">
@@ -468,7 +468,7 @@ $currency_symbol = $this->customlib->getHospitalCurrencyFormat();
                                 </div>
                             </form>
                         </div>
-                        <!-- /.tab-pane -->                        <div class="tab-pane active show" id="tab_8">
+                        <!-- /.tab-pane -->                        <div class="tab-pane" id="tab_8">
                             <form role="form" id="paytm" action="<?php echo site_url('admin/paymentsettings/paytm') ?>" method="post">
                                 <?php $paytm_result = check_in_array('paytm', $paymentlist); ?>
                                 <div class="p-3">
@@ -1782,18 +1782,18 @@ $currency_symbol = $this->customlib->getHospitalCurrencyFormat();
                                 <input type="radio" name="payment_setting" value="paystack" <?php if($radio_check == 'paystack') echo 'checked'; ?>>
                                 <span class="gw-selector-dot"></span>
                                 <span class="gw-selector-name"><?php echo $this->lang->line('paystack'); ?></span>
-                            </label>
+                            </label> -->
                             <label class="gw-selector-item">
                                 <input type="radio" name="payment_setting" value="razorpay" <?php if($radio_check == 'razorpay') echo 'checked'; ?>>
                                 <span class="gw-selector-dot"></span>
                                 <span class="gw-selector-name"><?php echo $this->lang->line('razorpay'); ?></span>
-                            </label> -->
-                            <label class="gw-selector-item">
+                            </label>
+                            <!-- <label class="gw-selector-item">
                                 <input type="radio" name="payment_setting" value="paytm" <?php if($radio_check == 'paytm') echo 'checked'; ?>>
                                 <span class="gw-selector-dot"></span>
                                 <span class="gw-selector-name"><?php echo $this->lang->line('paytm'); ?></span>
                             </label>
-                            <!-- <label class="gw-selector-item">
+                            <label class="gw-selector-item">
                                 <input type="radio" name="payment_setting" value="midtrans" <?php if($radio_check == 'midtrans') echo 'checked'; ?>>
                                 <span class="gw-selector-dot"></span>
                                 <span class="gw-selector-name"><?php echo $this->lang->line('midtrans'); ?></span>

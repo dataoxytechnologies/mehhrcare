@@ -88,11 +88,27 @@ class Razorpay extends Patient_Controller
             $save_record["blood_issue_id"] = $payment_data['id'];
         }elseif($payment_data['payment_for'] == "ambulance"){
             $save_record["ambulance_call_id"] = $payment_data['id'];
+        }elseif($payment_data['payment_for'] == "patientflow"){
+            $save_record["visit_id"] = $payment_data['id'];
         }
         $insert_id = $this->payment_model->insertOnlinePaymentInTransactions($save_record);
 
- 
+
         $array = array('insert_id' => $insert_id);
+
+        // Mark the patient flow visit as paid (duplicate-safe) once the
+        // transaction is recorded.
+        if ($payment_data['payment_for'] == "patientflow") {
+            $this->load->model('patientflow_model');
+            $visit = $this->patientflow_model->get_visit((int) $payment_data['id']);
+            if ($visit && (empty($visit->billing_status) || $visit->billing_status !== 'paid')) {
+                $this->patientflow_model->update_visit((int) $payment_data['id'], array(
+                    'billing_status' => 'paid',
+                    'cash_received'  => 1,
+                ));
+            }
+        }
+
         echo json_encode($array);
 
     }
