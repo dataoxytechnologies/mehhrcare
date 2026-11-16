@@ -400,7 +400,28 @@ if (!function_exists('pf_ct_age_label')) {
                                         : ($this->lang->line('cash_not_received') ?: 'Cash Not Received');
                                     ?>
                                         <span class="badge <?php echo $pf_pay_badge_class; ?>"><?php echo $pf_pay_label; ?></span>
+                                        <?php
+                                        // Determine payment mode first so we can decide whether
+                                        // to show the cash-received badge below.
+                                        $pf_payment_mode = !empty($v->payment_mode) ? (string) $v->payment_mode : '';
+                                        // Cash-received badge only applies to cash payments.
+                                        // Hide it when the bill was settled via a payment gateway.
+                                        $pf_show_cash_received = empty($pf_payment_mode) || $pf_payment_mode === 'Cash';
+                                        if ($pf_show_cash_received): ?>
                                         <div class="mt-1"><span class="badge <?php echo $pf_cash_badge_class; ?>"><?php echo $pf_cash_label; ?></span></div>
+                                        <?php endif; ?>
+                                        <?php
+                                        // Payment method badge: shows how the programme bill was settled
+                                        // (Cash / Online / Razorpay), recorded on the visit row.
+                                        $pf_mode_badge_map = array(
+                                            'Online' => 'bg-info-subtle text-info-emphasis',
+                                            'Razorpay' => 'bg-info-subtle text-info-emphasis',
+                                            'Cash'   => 'bg-success-subtle text-success-emphasis',
+                                        );
+                                        $pf_mode_badge_class = isset($pf_mode_badge_map[$pf_payment_mode]) ? $pf_mode_badge_map[$pf_payment_mode] : 'bg-secondary-subtle text-secondary-emphasis';
+                                        $pf_mode_label = $pf_payment_mode !== '' ? ucfirst($pf_payment_mode) : ($this->lang->line('not_set') ?: 'Not Set');
+                                        ?>
+                                        <div class="mt-1"><span class="badge <?php echo $pf_mode_badge_class; ?>" title="<?php echo $this->lang->line('payment_mode') ?: 'Payment Mode'; ?>"><?php echo $pf_mode_label; ?></span></div>
                                 </td>
                                 <td class="align-middle">
                                     <?php
@@ -641,14 +662,14 @@ if (!function_exists('pf_ct_age_label')) {
                                      </button>
                                      <?php } ?>
                                        <?php // if ($pf_can_manage_billing && !empty($v->has_programme_bill)) { ?>
-                                       <?php if (!empty($v->has_programme_bill)) { ?>
-                                      <a href="<?php echo site_url('admin/patientflow/generate_qr_code/' . $v->id); ?>" target="_blank"
-                                              class="btn btn-sm btn-outline-info w-100 mb-1"
-                                              data-bs-toggle="tooltip"
-                                              title="<?php echo $this->lang->line('generate_qr_code') ?: 'Generate QR Code'; ?>">
-                                          <i class="fa fa-qrcode"></i> &nbsp;<?php echo $this->lang->line('qrcode') ?: 'QR Code'; ?>
-                                      </a>
-                                      <?php } ?>
+                                        <?php if (!empty($v->has_programme_bill) && (empty($v->billing_status) || $v->billing_status !== 'paid')) { ?>
+                                       <a href="<?php echo site_url('admin/patientflow/generate_qr_code/' . $v->id); ?>" target="_blank"
+                                               class="btn btn-sm btn-outline-info w-100 mb-1"
+                                               data-bs-toggle="tooltip"
+                                               title="<?php echo $this->lang->line('pay') ?: 'Pay'; ?>">
+                                           <i class="fa fa-credit-card"></i> &nbsp;<?php echo $this->lang->line('pay') ?: 'Pay'; ?>
+                                       </a>
+                                       <?php } ?>
 
 
                                     <!-- <button class="btn btn-sm btn-outline-info w-100" type="button"
