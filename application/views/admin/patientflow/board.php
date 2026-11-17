@@ -2576,6 +2576,7 @@ foreach ($visits as $pf_v) {
         'identification_number' => (string) $pf_v->identification_number,
         'address'       => (string) $pf_v->address,
         'known_allergies' => (string) $pf_v->known_allergies,
+        'patient_id'      => (int) $pf_v->patient_id,
         'note'          => (string) $pf_v->note,
     );
 }
@@ -2680,7 +2681,15 @@ function pfCtOpenForm(opts) {
     // Column 4: patient's image + personal information.
     pfCtRenderPatientInfo(opts.visit);
     // Patient History: previous visits of this patient.
-    pfCtLoadPatientHistory(opts.patientId || 0);
+    // Resolve patientId from the caller-supplied value, falling back to the
+    // visit's patient record in pfCtPatients when the button's data attribute
+    // is missing or zero.
+    var historyPatientId = opts.patientId || 0;
+    if (!historyPatientId && opts.visit && pfCtPatients && pfCtPatients[opts.visit]) {
+        var p = pfCtPatients[opts.visit];
+        historyPatientId = p.patient_id || p.id || 0;
+    }
+    pfCtLoadPatientHistory(historyPatientId);
     var ct = opts.ct || {};
     for (var i = 0; i < pfCtCols.length; i++) {
         var key = pfCtCols[i];
@@ -2696,6 +2705,7 @@ function pfCtOpenForm(opts) {
 
 // Fetch and render previous visits of a patient in the Patient History panel.
 function pfCtLoadPatientHistory(patientId) {
+    console.log('Loading patient history for patientId:', patientId);
     var $body = $('#pf_ct_history_body');
     var $rows = $('#pf_ct_history_rows');
     var $table = $('#pf_ct_history_table');
@@ -2770,6 +2780,7 @@ $(document).on('click', '.pf-case-view-btn', function () {
     // Cache the context for the edit button.
     pfCtViewCtx = {
         visit: $btn.data('visit'),
+        patientId: $btn.data('patient-id'),
         patient: $btn.data('patient'),
         patientUuid: $btn.data('patient-uuid'),
         canEdit: String($btn.data('can-edit')) === '1',
@@ -2814,6 +2825,7 @@ $(document).on('click', '#pf_ctv_edit', function () {
         pfCtOpenForm({
             isEdit: true,
             visit: ctx.visit,
+            patientId: ctx.patientId,
             patient: ctx.patient,
             patientUuid: ctx.patientUuid,
             ct: ctx.ct,
