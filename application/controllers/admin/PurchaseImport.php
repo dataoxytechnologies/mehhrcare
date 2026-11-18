@@ -291,11 +291,18 @@ class PurchaseImport extends Admin_Controller
                 $cat_id = $categories[$category_key];
 
                 if (!isset($medicines[$cat_id][$medicine_key])) {
-                    $errs[] = $tag . ': medicine "' . $ln['medicine'] . '" was not found in that category.';
-                    continue;
+                    // Auto-create the missing medicine in the pharmacy table so its
+                    // purchase batch can still be saved. All changes stay in this controller.
+                    $new_med_id = $this->pi_auto_create_medicine($cat_id, $ln['medicine']);
+                    if ($new_med_id <= 0) {
+                        $errs[] = $tag . ': medicine "' . $ln['medicine'] . '" was not found in that category and could not be created.';
+                        continue;
+                    }
+                    $medicines[$cat_id][$medicine_key] = $new_med_id;
+                    $med_id = $new_med_id;
+                } else {
+                    $med_id = $medicines[$cat_id][$medicine_key];
                 }
-
-                $med_id = $medicines[$cat_id][$medicine_key];
 
                 /**
                  * Supported expiry formats:
@@ -375,6 +382,13 @@ class PurchaseImport extends Admin_Controller
                     $errs[] = $tag . ': Quantity must be positive.';
                     continue;
                 }
+
+                // Strip thousands-separator commas from numeric fields before validation.
+                $ln['purchase_price'] = $this->pi_clean_number($ln['purchase_price']);
+                $ln['mrp']            = $this->pi_clean_number($ln['mrp']);
+                $ln['sale_rate']      = $this->pi_clean_number($ln['sale_rate']);
+                $ln['tax']            = $this->pi_clean_number($ln['tax']);
+                $ln['amount']         = $this->pi_clean_number($ln['amount']);
 
                 if (!is_numeric($ln['purchase_price']) || !is_numeric($ln['mrp']) || !is_numeric($ln['sale_rate'])) {
                     $errs[] = $tag . ': Purchase Price, MRP and Sale Rate must be numeric.';
@@ -628,5 +642,46 @@ class PurchaseImport extends Admin_Controller
 
         // Return the last day of the expiry month.
         return date('Y-m-t', strtotime(sprintf('%04d-%02d-01', $year, $month)));
+    }
+
+    /**
+     * Auto-create a missing medicine in the pharmacy table during CSV import.
+     * Returns the new pharmacy.id, or 0 on failure.
+     *
+     * @param int    $cat_id      medicine_category_id
+     * @param string $medicine_name Medicine name to create
+     * @return int
+     */
+    private function pi_auto_create_medicine($cat_id, $medicine_name)
+    {
+        if (!$this->db->table_exists('pharmacy')) {
+            return 0;
+        }
+        $medicine_name = trim((string) $medicine_name);
+        if ($medicine_name === '') {
+            return 0;
+        }
+        $pdata = array(
+            'medicine_name'       => $medicine_name,
+            'medicine_category_id'=> (int) $cat_id,
+            'is_active'           => '1',
+            'note'                => 'Auto-created during purchase CSV import.',
+            'medicine_image'      => '',
+            'rack_number'         => '',
+        );
+        $this->db->insert('pharmacy', $pdata);
+        return (int) $this->db->insert_id();
+    }
+
+    /**
+     * Strip thousands-separator commas and surrounding whitespace from a
+     * numeric string so values like "1,200.50" pass is_numeric().
+     *
+     * @param string $value Raw value from CSV
+     * @return string Cleaned numeric string
+     */
+    private function pi_clean_number($value)
+    {
+        return str_replace(',', '', trim((string) $value));
     }
 }
