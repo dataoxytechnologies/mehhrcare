@@ -200,6 +200,9 @@ class Patientflow extends Admin_Controller
         $data['filter_search']     = $filter_search;
         $data['pf_is_superadmin']  = $ctx['is_superadmin'];
         $data['pf_my_levels']      = $ctx['my_levels'];
+        // Terminal (last) level of the chain — used to gate the Pharmacy
+        // Dispatch button to visits parked on the final flow level.
+        $data['pf_final_level']    = $this->patientflow_model->get_final_level('P1');
 
         // Payment-status permission: a staff may toggle a visit's payment
         // status if superadmin OR any of their levels has the
@@ -2568,6 +2571,7 @@ class Patientflow extends Admin_Controller
         $print_vial = $this->input->post('print_vial');
         $generate_bill = $this->input->post('generate_bill');
         $can_generate_pharmacy_bill = $this->input->post('can_generate_pharmacy_bill');
+        $show_patient_history = $this->input->post('show_patient_history');
 
         $this->form_validation->set_rules('title', $this->lang->line('title'), 'trim|required|max_length[120]');
         $this->form_validation->set_rules('code', $this->lang->line('code'), 'trim|required|max_length[20]');
@@ -2617,6 +2621,7 @@ class Patientflow extends Admin_Controller
             'print_vial' => $print_vial ? 1 : 0,
             'generate_bill' => $generate_bill ? 1 : 0,
             'can_generate_pharmacy_bill' => $can_generate_pharmacy_bill ? 1 : 0,
+            'show_patient_history' => $show_patient_history ? 1 : 0,
             'is_active'    => 1,
         );
 
@@ -2908,6 +2913,86 @@ class Patientflow extends Admin_Controller
     }
 
     /**
+     * AJAX: Pharmacy Dispatch.
+     * Marks a paid programme-bill visit as completed and closes its token so
+     * the number is free for the next patient.
+     */
+    public function dispatch_pharmacy($visit_id = 0)
+    {
+        if (!$this->rbac->hasPrivilege('patient_flow', 'can_edit')) {
+            echo json_encode(['status' => false, 'message' => 'Permission denied']);
+            return;
+        }
+
+        $visit_id = intval($visit_id);
+        if (!$visit_id) {
+            echo json_encode(['status' => false, 'message' => 'Invalid visit.']);
+            return;
+        }
+
+        $ctx = $this->pf_context();
+        $visit = $this->patientflow_model->get_visit($visit_id);
+        if (!$visit) {
+            echo json_encode(['status' => false, 'message' => 'Visit not found.']);
+            return;
+        }
+
+        $owned = $ctx['is_superadmin'];
+        if (!$owned) {
+            foreach ($ctx['my_levels'] as $ml) {
+                if ((int) $ml->id === (int) $visit->current_level_id) { $owned = true; break; }
+            }
+        }
+        if (!$owned) {
+            echo json_encode(['status' => false, 'message' => 'You are not allowed to dispatch this visit.']);
+            return;
+        }
+        if (!$ctx['is_superadmin'] && empty($visit->level_can_change_status)) {
+            echo json_encode(['status' => false, 'message' => 'Status change is not allowed at this level.']);
+            return;
+        }
+        if ((string) $visit->billing_status !== 'paid') {
+            echo json_encode(['status' => false, 'message' => 'Programme bill is not paid yet.']);
+            return;
+        }
+        if ((string) $visit->status === 'completed') {
+            echo json_encode(['status' => false, 'message' => 'Visit is already completed.']);
+            return;
+        }
+
+        $this->db->where('id', $visit_id);
+        $this->db->update('patient_flow_visits', array(
+            'status'         => 'completed',
+            'completed_at'   => date('Y-m-d H:i:s'),
+            'completed_by'   => $this->customlib->getStaffID(),
+        ));
+
+        // Close the token so the number is free for the next patient.
+        if (!empty($visit->token_no)
+            && !in_array($visit->token_status, array('CLOSED', 'NO_SHOW', 'SKIPPED'), true)) {
+            $this->patientflow_model->set_token_status(
+                $visit_id,
+                'CLOSED',
+                $this->customlib->getStaffID(),
+                null,
+                'Pharmacy dispatch'
+            );
+        }
+
+        $this->patientflow_model->add_log(array(
+            'visit_id'      => $visit_id,
+            'from_level_id' => $visit->current_level_id,
+            'to_level_id'   => $visit->current_level_id,
+            'action'        => 'pharmacy_dispatched',
+            'remarks'       => 'Visit completed via pharmacy dispatch',
+            'acted_by'      => $this->customlib->getStaffID(),
+            'acted_role_id' => $ctx['is_superadmin'] ? null : (isset($ctx['role_ids'][0]) ? $ctx['role_ids'][0] : null),
+        ));
+
+        echo json_encode(['status' => true, 'message' => 'Pharmacy dispatched. Visit completed and token closed.']);
+    }
+
+    /**
      * Patient Flow Report (Reports > Patient > Patient Flow Report):
      * filterable listing of all flow visits.
      */
@@ -3144,6 +3229,44 @@ class Patientflow extends Admin_Controller
     }
 
     /**
+     * Patient History page: full visit history for a patient.
+     * Shows every visit (including completed) with level, case-taking details
+     * and prescribed medicines per visit.
+     */
+    public function patient_history($patient_id = 0)
+    {
+        if (!$this->rbac->hasPrivilege('patient_flow', 'can_view')) {
+            access_denied();
+            return;
+        }
+
+        $patient_id = intval($patient_id);
+        if (!$patient_id) {
+            $this->session->set_flashdata('error_msg', 'Invalid patient.');
+            redirect('admin/patientflow');
+            return;
+        }
+
+        $this->session->set_userdata('top_menu', 'patient_flow');
+        $this->session->set_userdata('sub_menu', 'patient_flow');
+
+        $patient = $this->db->where('id', $patient_id)->get('patients')->row();
+        if (!$patient) {
+            $this->session->set_flashdata('error_msg', 'Patient not found.');
+            redirect('admin/patientflow');
+            return;
+        }
+
+        $data['title']     = 'Patient History';
+        $data['patient']   = $patient;
+        $data['visits']    = $this->patientflow_model->get_patient_history($patient_id);
+
+        $this->load->view('layout/header', $data);
+        $this->load->view('admin/patientflow/patient_history', $data);
+        $this->load->view('layout/footer', $data);
+    }
+
+    /**
      * Save case-taking details for a visit (AJAX). Only allowed when the
      * acting staff owns the visit current level and that level has the
      * can_case_taking flag, or for superadmin.
@@ -3309,6 +3432,21 @@ foreach ($slots as $pfx => $label) {
         echo json_encode(array('status' => true, 'data' => $result));
     }
 
+    public function get_visit_medicines_json()
+    {
+        if (!$this->rbac->hasPrivilege('patient_flow', 'can_view')) {
+            echo json_encode(array('status' => false, 'message' => 'Access denied.'));
+            return;
+        }
+        $visit_id = intval($this->input->post('visit_id', true));
+        if (!$visit_id) {
+            echo json_encode(array('status' => false, 'message' => 'Visit is required.'));
+            return;
+        }
+        $medicines = $this->patientflow_model->get_visit_medicines($visit_id);
+        echo json_encode(array('status' => true, 'medicines' => $medicines));
+    }
+
     public function get_medicines_by_series()
     {
         if (!$this->rbac->hasPrivilege('patient_flow', 'can_add')) {
@@ -3386,12 +3524,14 @@ foreach ($slots as $pfx => $label) {
         $visit_id           = intval($this->input->post('visit_id', true));
         $broad_area_series  = trim((string) $this->input->post('broad_area_series', true));
         $medicines          = json_decode((string) $this->input->post('medicines', true), true);
+        $staff_id           = $this->customlib->getStaffID();
+        $updated_by         = intval($this->input->post('updated_by', true)) ?: $staff_id;
         if (!$visit_id || !is_array($medicines) || empty($medicines)) {
             echo json_encode(array('status' => false, 'message' => 'Visit and medicines are required.'));
             return;
         }
         $result = $this->patientflow_model->save_prescriptions_bulk(
-            $visit_id, $medicines, $this->customlib->getStaffID(), $broad_area_series
+            $visit_id, $medicines, $staff_id, $broad_area_series, $updated_by
         );
         echo json_encode($result);
     }

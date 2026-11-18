@@ -120,6 +120,16 @@ if (!function_exists('pf_ct_age_label')) {
     background: var(--surface-2, #f8fafc);
     }
 
+    /* View Case Taking modal: pin header & footer, scroll the body so
+       overflowing content never clips what sits beneath (e.g. the footer). */
+    #pfCaseViewModal .modal-content {
+    display:        flex;
+    flex-direction: column;
+    height:         100%;
+    min-height:     0;
+    overflow:       hidden;
+    }
+
     /* Column 4 of the case-taking form: patient's photo + personal info. */
     .pf-ct-patient-card { height: 100%; }
     .pf-ct-patient-head {
@@ -663,13 +673,30 @@ if (!function_exists('pf_ct_age_label')) {
                                      <?php } ?>
                                        <?php // if ($pf_can_manage_billing && !empty($v->has_programme_bill)) { ?>
                                         <?php if (!empty($v->has_programme_bill) && (empty($v->billing_status) || $v->billing_status !== 'paid')) { ?>
-                                       <a href="<?php echo site_url('admin/patientflow/generate_qr_code/' . $v->id); ?>" target="_blank"
-                                               class="btn btn-sm btn-outline-info w-100 mb-1"
-                                               data-bs-toggle="tooltip"
-                                               title="<?php echo $this->lang->line('pay') ?: 'Pay'; ?>">
-                                           <i class="fa fa-credit-card"></i> &nbsp;<?php echo $this->lang->line('pay') ?: 'Pay'; ?>
-                                       </a>
-                                       <?php } ?>
+                                        <a href="<?php echo site_url('admin/patientflow/generate_qr_code/' . $v->id); ?>" target="_blank"
+                                                class="btn btn-sm btn-outline-info w-100 mb-1"
+                                                data-bs-toggle="tooltip"
+                                                title="<?php echo $this->lang->line('pay') ?: 'Pay'; ?>">
+                                            <i class="fa fa-credit-card"></i> &nbsp;<?php echo $this->lang->line('pay') ?: 'Pay'; ?>
+                                        </a>
+                                        <?php } ?>
+                                        <?php if ($pf_owned && !empty($v->has_programme_bill) && $v->billing_status === 'paid' && $v->status !== 'completed' && !empty($pf_final_level) && (int) $v->current_level_id === (int) $pf_final_level->id) { ?>
+                                        <button type="button" class="btn btn-sm btn-outline-success w-100 mb-1 pf-dispatch-pharmacy"
+                                                data-visit-id="<?php echo (int) $v->id; ?>"
+                                                data-patient-name="<?php echo addslashes((string) $v->patient_name); ?>"
+                                                data-bs-toggle="tooltip"
+                                                title="Pharmacy Dispatch">
+                                            <i class="fas fa-truck-medical"></i> &nbsp;Pharmacy Dispatch
+                                        </button>
+                                        <?php } ?>
+                                        <?php if (!empty($v->patient_id) && !empty($v->level_show_patient_history)) { ?>
+                                        <a href="<?php echo site_url('admin/patientflow/patient_history/' . (int) $v->patient_id); ?>"
+                                           class="btn btn-sm btn-outline-primary w-100 mb-1" data-bs-toggle="tooltip"
+                                           title="<?php echo $this->lang->line('view_patient_history') ?: 'View Patient History'; ?>">
+                                            <i class="fa fa-history"></i> &nbsp;<?php echo $this->lang->line('view_patient_history') ?: 'View Patient History'; ?>
+                                        </a>
+                                        <?php } ?>
+
 
 
                                     <!-- <button class="btn btn-sm btn-outline-info w-100" type="button"
@@ -722,8 +749,11 @@ if (!function_exists('pf_ct_age_label')) {
                                              data-patient-id="<?php echo (int) $v->patient_id; ?>"
                                              data-patient="<?php echo addslashes((string) $v->patient_name); ?>"
                                              data-patient-uuid="<?php echo addslashes((string) $v->patient_uuid); ?>"
-                                             data-ct="<?php echo $pf_ct_json; ?>"
-                                             title="<?php echo $this->lang->line('medicine_selection') ?: 'Medicine Selection'; ?>">
+                                                                                          data-ct="<?php echo $pf_ct_json; ?>"
+                                             data-broad-area-series="<?php echo addslashes((string) ($v->broad_area_series ?? '')); ?>"
+                                             data-reason="<?php echo addslashes((string) ($v->reason ?? '')); ?>"
+                                             title="<?php echo $this->lang->line('medicine_selection') ?: 'Medicine Selection'; ?>"
+>
                                         <i class="fas fa-prescription"></i> &nbsp;<?php echo $this->lang->line('medicine_selection') ?: 'Medicine Selection'; ?>
                                       </button>
                                       <?php } ?>
@@ -741,15 +771,21 @@ if (!function_exists('pf_ct_age_label')) {
                                      <button type="button"
                                              class="btn btn-sm btn-outline-info w-100 mb-1 pf-case-view-btn"
                                              data-bs-toggle="tooltip"
-                                             data-visit="<?php echo (int) $v->id; ?>"
-                                             data-patient-uuid="<?php echo addslashes((string) $v->patient_uuid); ?>"
-                                             data-patient="<?php echo addslashes((string) $v->patient_name); ?>"
-                                             data-visit-type="<?php echo addslashes((string) ($v->visit_type ?: 'single')); ?>"
-                                             data-partner-patient="<?php echo addslashes((string) ($v->partner_patient_name ?? '')); ?>"
-                                             data-ct="<?php echo $pf_ct_json; ?>"
-                                             data-by="<?php echo addslashes(trim(((string) $v->case_taking_by_name) . ' ' . (string) $v->case_taking_by_surname)); ?>"
-                                             data-at="<?php echo addslashes((string) $v->case_taking_at); ?>"
+                                              data-visit="<?php echo (int) $v->id; ?>"
+                                              data-patient-uuid="<?php echo addslashes((string) $v->patient_uuid); ?>"
+                                              data-patient="<?php echo addslashes((string) $v->patient_name); ?>"
+                                              data-visit-type="<?php echo addslashes((string) ($v->visit_type ?: 'single')); ?>"
+                                              data-partner-patient="<?php echo addslashes((string) ($v->partner_patient_name ?? '')); ?>"
+                                              data-ct="<?php echo $pf_ct_json; ?>"
+                                              data-by="<?php echo addslashes(trim(((string) $v->case_taking_by_name) . ' ' . (string) $v->case_taking_by_surname)); ?>"
+                                              data-at="<?php echo addslashes((string) $v->case_taking_at); ?>"
+                                              data-level-no="<?php echo (int) $v->level_no; ?>"
+                                              data-level-code="<?php echo addslashes((string) $v->level_code); ?>"
+                                              data-level-title="<?php echo addslashes((string) $v->level_title); ?>"
+                                              data-level-doctor="<?php echo addslashes(trim(((string) $v->case_taking_by_name) . ' ' . (string) $v->case_taking_by_surname)); ?>"
+                                              data-level-employee-id="<?php echo addslashes((string) $v->case_taking_by_employee_id); ?>"
                                               data-can-edit="<?php echo $pf_can_edit_ct ? '1' : '0'; ?>"
+
 
                                              title="<?php echo $this->lang->line('view_case_taking') ?: 'View Case Taking'; ?>">
                                           <i class="fa fa-eye"></i> &nbsp;<?php echo $this->lang->line('view_case_taking') ?: 'View Case Taking'; ?>
@@ -2252,51 +2288,77 @@ foreach ($pf_ct_slots as $pf_key => $pf_slot) {
                 </h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <div class="modal-body">
-                <p class="mb-1 text-muted small" id="pf_ctv_patient"></p>
-                <p class="mb-2 small" id="pf_ctv_visit_info"></p>
-                <div class="row g-2">
-                    <div class="col-md-6">
-                        <div class="sh-form-card">
-                            <div class="sh-card-header">
-                                <span class="sh-card-header-title"><i class="fa fa-stethoscope"></i> Case Summary</span>
+            <div class="pup-scroll-area">
+                <div class="modal-body">
+                    <p class="mb-1 text-muted small" id="pf_ctv_patient"></p>
+                    <p class="mb-2 small" id="pf_ctv_visit_info"></p>
+                    <div class="row g-2">
+                        <div class="col-md-6">
+                            <div class="sh-form-card">
+                                <div class="sh-card-header">
+                                    <span class="sh-card-header-title"><i class="fa fa-stethoscope"></i> Case Summary</span>
+                                </div>
+                                <div class="sh-card-body">
+                            <table class="table table-bordered table-sm mb-0">
+                                <tr><th style="width:40%"><?php echo $this->lang->line('case_taking_type') ?: 'Case Taking Type'; ?></th><td id="pf_ctv_case_taking_type"></td></tr>
+                                <tr><th>Constitution Code</th><td id="pf_ctv_ct_constitution_code"></td></tr>
+                                <tr><th>Sex</th><td id="pf_ctv_ct_sex"></td></tr>
+                                <tr><th>Primary concern</th><td id="pf_ctv_ct_primary_concern"></td></tr>
+                                <tr><th>Duration of concern</th><td id="pf_ctv_ct_concern_duration"></td></tr>
+                                <tr><th>Primary system / area</th><td id="pf_ctv_ct_primary_system"></td></tr>
+                                <tr><th>Dominant nature</th><td id="pf_ctv_ct_dominant_nature"></td></tr>
+                                <tr><th>Body Type</th><td id="pf_ctv_ct_bod1"></td></tr>
+                                <tr><th>Face Type</th><td id="pf_ctv_ct_fsh1"></td></tr>
+                                <tr><th>Nose Type</th><td id="pf_ctv_ct_nos1"></td></tr>
+                                <tr><th>Assessment certainty</th><td id="pf_ctv_ct_assessment_certainty"></td></tr>
+                            </table>
+                                </div>
                             </div>
-                            <div class="sh-card-body">
-                        <table class="table table-bordered table-sm mb-0">
-                            <tr><th style="width:40%"><?php echo $this->lang->line('case_taking_type') ?: 'Case Taking Type'; ?></th><td id="pf_ctv_case_taking_type"></td></tr>
-                            <tr><th>Constitution Code</th><td id="pf_ctv_ct_constitution_code"></td></tr>
-                            <tr><th>Sex</th><td id="pf_ctv_ct_sex"></td></tr>
-                            <tr><th>Primary concern</th><td id="pf_ctv_ct_primary_concern"></td></tr>
-                            <tr><th>Duration of concern</th><td id="pf_ctv_ct_concern_duration"></td></tr>
-                            <tr><th>Primary system / area</th><td id="pf_ctv_ct_primary_system"></td></tr>
-                            <tr><th>Dominant nature</th><td id="pf_ctv_ct_dominant_nature"></td></tr>
-                            <tr><th>Body Type</th><td id="pf_ctv_ct_bod1"></td></tr>
-                            <tr><th>Face Type</th><td id="pf_ctv_ct_fsh1"></td></tr>
-                            <tr><th>Nose Type</th><td id="pf_ctv_ct_nos1"></td></tr>
-                            <tr><th>Assessment certainty</th><td id="pf_ctv_ct_assessment_certainty"></td></tr>
-                        </table>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="sh-form-card">
+                                <div class="sh-card-header">
+                                    <span class="sh-card-header-title"><i class="fas fa-clipboard-check"></i> Assessment &amp; Status</span>
+                                </div>
+                                <div class="sh-card-body">
+                            <table class="table table-bordered table-sm mb-0">
+                                <tr><th style="width:40%">Case status</th><td id="pf_ctv_ct_status"></td></tr>
+                                <tr><th>Review Required reason</th><td id="pf_ctv_ct_review_reason"></td></tr>
+                                <tr><th>Tissue / structure</th><td id="pf_ctv_ct_tissue_structure"></td></tr>
+                                <tr><th>Report information</th><td id="pf_ctv_ct_report_info"></td></tr>
+                                <tr><th>Secondary concerns</th><td id="pf_ctv_ct_secondary_concerns"></td></tr>
+                                <tr><th><?php echo $this->lang->line('description') ?: 'Description'; ?></th><td id="pf_ctv_desc"></td></tr>
+                                <tr><th>Additional note</th><td id="pf_ctv_ct_additional_note"></td></tr>
+                                <tr><th>Previous treatment</th><td id="pf_ctv_ct_previous_treatment"></td></tr>
+                                <tr><th>Programme suggestion</th><td id="pf_ctv_ct_programme_suggestion"></td></tr>
+                                <tr><th><?php echo $this->lang->line('taken_by') ?: 'Taken By'; ?></th><td id="pf_ctv_by"></td></tr>
+                                <tr><th><?php echo $this->lang->line('taken_at') ?: 'Taken At'; ?></th><td id="pf_ctv_at"></td></tr>
+                                <tr><th>Level</th><td id="pf_ctv_level"></td></tr>
+                                <tr><th>Doctor</th><td id="pf_ctv_doctor"></td></tr>
+                            </table>
+                                </div>
                             </div>
                         </div>
                     </div>
-                    <div class="col-md-6">
+                    <div class="col-12 mt-2">
                         <div class="sh-form-card">
                             <div class="sh-card-header">
-                                <span class="sh-card-header-title"><i class="fas fa-clipboard-check"></i> Assessment &amp; Status</span>
+                                <span class="sh-card-header-title"><i class="fas fa-prescription-bottle-alt"></i> Medicines Allotted</span>
                             </div>
                             <div class="sh-card-body">
-                        <table class="table table-bordered table-sm mb-0">
-                            <tr><th style="width:40%">Case status</th><td id="pf_ctv_ct_status"></td></tr>
-                            <tr><th>Review Required reason</th><td id="pf_ctv_ct_review_reason"></td></tr>
-                            <tr><th>Tissue / structure</th><td id="pf_ctv_ct_tissue_structure"></td></tr>
-                            <tr><th>Report information</th><td id="pf_ctv_ct_report_info"></td></tr>
-                            <tr><th>Secondary concerns</th><td id="pf_ctv_ct_secondary_concerns"></td></tr>
-                            <tr><th><?php echo $this->lang->line('description') ?: 'Description'; ?></th><td id="pf_ctv_desc"></td></tr>
-                            <tr><th>Additional note</th><td id="pf_ctv_ct_additional_note"></td></tr>
-                            <tr><th>Previous treatment</th><td id="pf_ctv_ct_previous_treatment"></td></tr>
-                            <tr><th>Programme suggestion</th><td id="pf_ctv_ct_programme_suggestion"></td></tr>
-                            <tr><th><?php echo $this->lang->line('taken_by') ?: 'Taken By'; ?></th><td id="pf_ctv_by"></td></tr>
-                            <tr><th><?php echo $this->lang->line('taken_at') ?: 'Taken At'; ?></th><td id="pf_ctv_at"></td></tr>
-                        </table>
+                                <table class="table table-bordered table-sm mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th style="width:40%">Medicine</th>
+                                            <th>Series</th>
+                                            <th>Variant</th>
+                                            <th>Pharmacy</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="pf_ctv_medicines">
+                                        <tr><td colspan="4" class="text-muted text-center">Loading…</td></tr>
+                                    </tbody>
+                                </table>
                             </div>
                         </div>
                     </div>
@@ -2309,6 +2371,11 @@ foreach ($pf_ct_slots as $pf_key => $pf_slot) {
                 <?php if ($this->rbac->hasPrivilege('patient_flow', 'can_edit')) { ?>
                 <button type="button" class="btn btn-warning" id="pf_ctv_edit">
                     <i class="fa fa-edit"></i> <?php echo $this->lang->line('edit_case_taking') ?: 'Edit Case Taking'; ?>
+                </button>
+                <?php } ?>
+                <?php if ($this->rbac->hasPrivilege('patient_flow', 'can_add')) { ?>
+                <button type="button" class="btn btn-outline-primary d-none" id="pf_ctv_manage_meds" data-visit="">
+                    <i class="fas fa-prescription"></i> Manage Medicines
                 </button>
                 <?php } ?>
             </div>
@@ -2534,6 +2601,7 @@ var pfCtLbl = {
     add: <?php echo json_encode($this->lang->line('case_taking') ?: 'Case Taking'); ?>,
     edit: <?php echo json_encode($this->lang->line('edit_case_taking') ?: 'Edit Case Taking'); ?>
 };
+var pfStaffId = <?php echo intval($this->customlib->getStaffID()); ?>;
 // Case-taking detail fields (must match case_taking_columns() in the model).
 var pfCtCols = [
     'case_taking_type', 'case_taking_description',
@@ -2805,6 +2873,47 @@ $(document).on('click', '.pf-case-view-btn', function () {
     pfCtPut('pf_ctv_ct_nos1', pfCtSlot('nos'));
     $('#pf_ctv_by').text($btn.data('by') || '—');
     $('#pf_ctv_at').text($btn.data('at') || '—');
+    var pfLvlNo = $btn.data('level-no') || '';
+    var pfLvlCode = $btn.data('level-code') || '';
+    var pfLvlTitle = $btn.data('level-title') || '';
+    var pfLvlLabel = '';
+    if (pfLvlCode !== '' && pfLvlTitle !== '') {
+        pfLvlLabel = pfLvlCode + ' — ' + pfLvlTitle;
+    } else if (pfLvlCode !== '') {
+        pfLvlLabel = pfLvlCode;
+    } else if (pfLvlTitle !== '') {
+        pfLvlLabel = pfLvlTitle;
+    }
+    $('#pf_ctv_level').text(pfLvlLabel !== '' ? pfLvlLabel : '—');
+    $('#pf_ctv_doctor').text($btn.data('level-doctor') || '—');
+
+    // Fetch prescribed medicines for this visit.
+    var pfMedTbody = $('#pf_ctv_medicines');
+    pfMedTbody.html('<tr><td colspan="4" class="text-muted text-center">Loading…</td></tr>');
+    var pfVisitId = $btn.data('visit');
+    $.post('<?php echo site_url('admin/patientflow/get_visit_medicines_json'); ?>', { visit_id: pfVisitId }, function (resp) {
+        pfMedTbody.empty();
+        var hasMeds = resp && resp.medicines && resp.medicines.length > 0;
+        if (!hasMeds) {
+            pfMedTbody.html('<tr><td colspan="4" class="text-muted text-center">No medicines allotted.</td></tr>');
+            $('#pf_ctv_manage_meds').addClass('d-none').data('visit', '');
+        } else {
+            resp.medicines.forEach(function (m) {
+                var medLabel = (m.medicine_identity || m.code || m.medicine_name || m.medicine_id || '—');
+                var series = m.series || '—';
+                var variant = m.variant || '—';
+                var pharmacy = m.pharmacy_name || '—';
+                var row = $('<tr></tr>');
+                row.append($('<td></td>').text(medLabel));
+                row.append($('<td></td>').text(series));
+                row.append($('<td></td>').text(variant));
+                row.append($('<td></td>').text(pharmacy));
+                pfMedTbody.append(row);
+            });
+            $('#pf_ctv_manage_meds').removeClass('d-none').data('visit', pfVisitId);
+        }
+    }, 'json');
+
     // Only offer the edit action when this row may actually be edited.
     if ($('#pf_ctv_edit').length) {
         $('#pf_ctv_edit').toggle(!!pfCtViewCtx.canEdit);
@@ -2829,6 +2938,28 @@ $(document).on('click', '#pf_ctv_edit', function () {
             patient: ctx.patient,
             patientUuid: ctx.patientUuid,
             ct: ctx.ct,
+        });
+    }, 250);
+});
+
+/* "Manage Medicines" in the View Case Taking modal ->
+   close the view and open the medicine selection modal. */
+$(document).on('click', '#pf_ctv_manage_meds', function () {
+    var $btn = $(this);
+    var visitId = $btn.data('visit');
+    if (!visitId) { return; }
+    var viewModal = bootstrap.Modal.getInstance(document.getElementById('pfCaseViewModal'));
+    if (viewModal) { viewModal.hide(); }
+    setTimeout(function () {
+        if (!pfCtViewCtx) { return; }
+        pfOpenMedSelect({
+            visitId: visitId,
+            patientId: pfCtViewCtx.patientId,
+            patient: pfCtViewCtx.patient,
+            patientUuid: pfCtViewCtx.patientUuid,
+            ct: pfCtViewCtx.ct,
+            storedSeries: '',
+            storedReason: ''
         });
     }, 250);
 });
@@ -2957,6 +3088,17 @@ function pfMsResolveMedicines() {
             $seriesCard.hide();
         }
 
+        // Preselect the previously saved broad area series and auto-fetch
+        // its medicines so already-assigned checkboxes show pre-checked.
+        var pfPresel = window.pfMsPreselectSeries || '';
+        if (pfPresel !== '' && $seriesSel.find('option[value="' + pfPresel + '"]').length > 0) {
+            $seriesSel.val(pfPresel);
+            $seriesCard.show();
+            setTimeout(function () {
+                $('#pf_ms_fetch_series').click();
+            }, 50);
+        }
+
         // Reset table & status
         $('#pf_med_select_table_wrapper').hide();
         $('#pf_med_select_table_rows').empty();
@@ -3036,7 +3178,7 @@ function pfMsFetchBySeries() {
             if (series === 'FX') { seriesLabel = 'FX (Universal)'; }
             if (series === 'E') { seriesLabel = 'E (Universal)'; }
             rows += '<tr style="background:#e9ecef;font-weight:700;">' +
-                '<td colspan="9">Series ' + seriesLabel + '</td>' +
+                '<td colspan="10">Series ' + seriesLabel + '</td>' +
                 '</tr>';
 
             smeds.forEach(function (m) {
@@ -3145,19 +3287,28 @@ function pfSavePrescription(medId, series, variant) {
     });
 }
 
-/* Open Medicine Selection Modal */
-$(document).on('click', '.pf-med-btn', function () {
+/* Open Medicine Selection Modal for a given visit. */
+function pfOpenMedSelect(opts) {
     var $modal = $('#pfMedSelectModal');
     if ($modal.parent()[0] && $modal.parent()[0] !== document.body) {
         $modal.appendTo('body');
     }
 
-    var visitId = $(this).data('visit');
-    var patientId = $(this).data('patient-id');
-    var patient = $(this).data('patient');
-    var patientUuid = $(this).data('patient-uuid');
-    var ct = pfCtParse(this);
+    var visitId = opts.visitId;
+    var patientId = opts.patientId || 0;
+    var patient = opts.patient || '';
+    var patientUuid = opts.patientUuid || '';
+    var ct = opts.ct || {};
     pfMedVisitId = visitId;
+
+    // Stored visit-level broad area series + FX/E reason (if previously saved).
+    var pfStoredSeries = opts.storedSeries || '';
+    var pfStoredReason = opts.storedReason || '';
+    if (pfStoredReason !== '') {
+        $('#pf_ms_reason').val(pfStoredReason);
+        $('#pf_ms_reason_wrapper').removeClass('d-none');
+        $('#pf_ms_reason').prop('required', true);
+    }
 
     $('#pf_ms_visit_id').val(visitId);
     $('#pf_ms_patient_uuid').val(patientUuid);
@@ -3216,10 +3367,26 @@ $(document).on('click', '.pf-med-btn', function () {
     $('#pf_med_select_status').removeClass('alert-danger alert-warning alert-success').addClass('alert-info');
     $('#pf_med_select_text').text('Resolving medicines...');
 
+    // Remember stored series so pfMsResolveMedicines can preselect it + auto-fetch.
+    window.pfMsPreselectSeries = pfStoredSeries;
+
     // Automatically resolve medicines for this visit
     pfMsResolveMedicines();
 
     bootstrap.Modal.getOrCreateInstance(document.getElementById('pfMedSelectModal')).show();
+}
+
+/* Open Medicine Selection Modal */
+$(document).on('click', '.pf-med-btn', function () {
+    pfOpenMedSelect({
+        visitId: $(this).data('visit'),
+        patientId: $(this).data('patient-id'),
+        patient: $(this).data('patient'),
+        patientUuid: $(this).data('patient-uuid'),
+        ct: pfCtParse(this),
+        storedSeries: $(this).data('broad-area-series') || '',
+        storedReason: $(this).data('reason') || ''
+    });
 });
 
 // Resolve medicines button
@@ -3270,6 +3437,7 @@ $(document).on('click', '#pf_ms_save', function () {
     $.post('<?php echo site_url('admin/patientflow/save_prescriptions_bulk'); ?>', {
         visit_id: visitId,
         broad_area_series: broadAreaSeries,
+        updated_by: pfStaffId,
         medicines: JSON.stringify(checked)
     }, function (response) {
         $('#pf_ms_save').prop('disabled', false).html('<i class="fa fa-check-circle"></i> Save Selected');
@@ -3816,10 +3984,36 @@ $(document).on('click', '.generatebill', function() {
             var modal = new bootstrap.Modal(document.getElementById('programmeBillModal'));
             modal.show();
         },
-        error: function() {
-            $btn.btnReset();
-            alert('Unable to load programme bill details for this visit.');
+            error: function() {
+                $btn.btnReset();
+                alert('Unable to load programme bill details for this visit.');
+            }
+    });
+});
+
+// Pharmacy Dispatch: mark paid visit as completed and close its token.
+$(document).on('click', '.pf-dispatch-pharmacy', function () {
+    var $btn = $(this);
+    var visitId = $btn.data('visit-id');
+    if (!visitId) {
+        errorMsg('Invalid visit.');
+        return;
+    }
+    if (!confirm('Dispatch this patient from pharmacy?\nThis will mark the visit as completed and close the token.')) {
+        return;
+    }
+    $btn.prop('disabled', true).html('<i class="fa fa-spinner fa-spin me-1"></i> Dispatching...');
+    $.post('<?php echo site_url('admin/patientflow/dispatch_pharmacy/'); ?>' + visitId, function (res) {
+        $btn.prop('disabled', false).html('<i class="fas fa-truck-medical"></i> Pharmacy Dispatch');
+        if (res && res.status) {
+            successMsg(res.message || 'Pharmacy dispatched.');
+            setTimeout(function () { window.location.reload(); }, 500);
+        } else {
+            errorMsg(res && res.message ? res.message : 'Failed to dispatch.');
         }
+    }, 'json').fail(function () {
+        $btn.prop('disabled', false).html('<i class="fas fa-truck-medical"></i> Pharmacy Dispatch');
+        errorMsg('Server error while dispatching.');
     });
 });
 

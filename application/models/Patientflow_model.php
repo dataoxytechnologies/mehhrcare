@@ -151,6 +151,10 @@ class Patientflow_model extends CI_Model
             if (!$this->db->field_exists('can_generate_pharmacy_bill', 'patient_flow_levels')) {
                 $this->db->query("ALTER TABLE `patient_flow_levels` ADD COLUMN `can_generate_pharmacy_bill` TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'staff owning this level may generate and print pharmacy bills' AFTER `generate_bill`");
             }
+            // 11) Show patient history permission
+            if (!$this->db->field_exists('show_patient_history', 'patient_flow_levels')) {
+                $this->db->query("ALTER TABLE `patient_flow_levels` ADD COLUMN `show_patient_history` TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'staff owning this level may view patient history' AFTER `generate_bill`");
+            }
         }
         // 6) Level permission: staff whose role owns a level with this flag
         //    may generate an invoice number for a visit.
@@ -697,12 +701,21 @@ class Patientflow_model extends CI_Model
                 `name_hidden` TINYINT(1) NOT NULL DEFAULT 1,
                 `is_active` TINYINT(1) NOT NULL DEFAULT 1,
                 `stock_deducted` TINYINT(1) NOT NULL DEFAULT 0,
+                `updated_by` INT NULL DEFAULT NULL,
+                `updated_at` DATETIME NULL DEFAULT NULL,
                 PRIMARY KEY (`id`)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3");
         }
         // Add stock_deducted column if missing (existing installations)
         if ($this->db->table_exists('patient_flow_prescription') && !$this->db->field_exists('stock_deducted', 'patient_flow_prescription')) {
             $this->db->query("ALTER TABLE `patient_flow_prescription` ADD COLUMN `stock_deducted` TINYINT(1) NOT NULL DEFAULT 0 AFTER `is_active`");
+        }
+        // Add updated_by / updated_at columns if missing (existing installations)
+        if ($this->db->table_exists('patient_flow_prescription') && !$this->db->field_exists('updated_by', 'patient_flow_prescription')) {
+            $this->db->query("ALTER TABLE `patient_flow_prescription` ADD COLUMN `updated_by` INT NULL DEFAULT NULL AFTER `stock_deducted`");
+        }
+        if ($this->db->table_exists('patient_flow_prescription') && !$this->db->field_exists('updated_at', 'patient_flow_prescription')) {
+            $this->db->query("ALTER TABLE `patient_flow_prescription` ADD COLUMN `updated_at` DATETIME NULL DEFAULT NULL AFTER `updated_by`");
         }
         // reason column moved to patient_flow_visits table; drop if still present on prescription table
         $fields = $this->db->list_fields('patient_flow_prescription');
@@ -1344,11 +1357,12 @@ class Patientflow_model extends CI_Model
                            bp.name AS blood_group_name,
                            l.code AS level_code, l.title AS level_title, l.counter_type AS level_counter, l.level_no AS level_no, l.can_approve AS level_can_approve,
                            l.can_generate_billing_ref AS level_can_generate_billing_ref, l.can_print_billing AS level_can_print_billing, l.can_change_status AS level_can_change_status,
-                           l.can_change_payment AS level_can_change_payment, l.can_cash_received AS level_can_cash_received, l.can_change_programme_status AS level_can_change_programme_status,
-                           l.can_create_pbhp_id AS level_can_create_pbhp, l.can_generate_invoice AS level_can_generate_invoice, l.can_generate_pharmacy_bill AS level_can_generate_pharmacy_bill,
-                           l.can_case_taking AS level_can_case_taking, l.can_view_case_taking AS level_can_view_case_taking,
-                           l.can_prescribe_medicine AS level_can_prescribe_medicine, l.print_vial AS level_print_vial, l.generate_bill AS level_generate_bill,
-                           pl.code AS next_code, pl.title AS next_title, pl.id AS next_level_id,
+                            l.can_change_payment AS level_can_change_payment, l.can_cash_received AS level_can_cash_received, l.can_change_programme_status AS level_can_change_programme_status,
+                            l.can_create_pbhp_id AS level_can_create_pbhp, l.can_generate_invoice AS level_can_generate_invoice, l.can_generate_pharmacy_bill AS level_can_generate_pharmacy_bill,
+                            l.can_case_taking AS level_can_case_taking, l.can_view_case_taking AS level_can_view_case_taking,
+                            l.can_prescribe_medicine AS level_can_prescribe_medicine, l.print_vial AS level_print_vial, l.generate_bill AS level_generate_bill,
+                            l.show_patient_history AS level_show_patient_history,
+                            pl.code AS next_code, pl.title AS next_title, pl.id AS next_level_id,
                            pv.id AS prev_level_id, pv.code AS prev_code, pv.title AS prev_title,
                            od.case_reference_id AS opd_case_reference, od.created_at AS opd_created_at,
                            sc.name AS case_taking_by_name, sc.surname AS case_taking_by_surname, sc.employee_id AS case_taking_by_employee_id');
@@ -1469,6 +1483,48 @@ class Patientflow_model extends CI_Model
                 $lvl = isset($levels[(int) $v->current_level_id]) ? $levels[(int) $v->current_level_id] : null;
                 $v->level_title = $lvl ? $lvl->title : '-';
                 $v->level_code = $lvl ? $lvl->code : '-';
+                $v->visit_code = !empty($v->visit_no) ? $v->visit_no : ('#' . (int) $v->id);
+            }
+        }
+
+        return $visits;
+    }
+
+    /**
+     * Return full history of a patient's visits: all statuses (including completed),
+     * with case-taking details, level info, and prescribed medicines per visit.
+     */
+    public function get_patient_history($patient_id)
+    {
+        $patient_id = (int) $patient_id;
+        if (!$patient_id) {
+            return array();
+        }
+
+        $this->db->select('v.*, p.patient_name, p.mobileno, p.gender, p.age, p.month, p.day, p.patient_uuid,
+                           p.image, p.dob, p.guardian_name, p.blood_group, p.marital_status, p.email,
+                           p.address, p.identification_number, p.known_allergies, p.note,
+                           l.code AS level_code, l.title AS level_title, l.level_no AS level_no,
+                           l.phase AS level_phase,
+                           sc.name AS case_taking_by_name, sc.surname AS case_taking_by_surname,
+                           v.case_taking_at AS case_taking_at');
+        $this->db->from('patient_flow_visits v');
+        $this->db->join('patients p', 'p.id = v.patient_id', 'left');
+        $this->db->join('patient_flow_levels l', 'l.id = v.current_level_id', 'left');
+        $this->db->join('staff sc', 'sc.id = v.case_taking_by', 'left');
+        $this->db->where('v.patient_id', $patient_id);
+        $this->db->order_by('v.created_at', 'asc');
+        $visits = $this->db->get()->result();
+
+        if (!empty($visits)) {
+            $visit_ids = array_map(function ($vv) { return (int) $vv->id; }, $visits);
+            $stages = $this->get_stages_for_visits($visit_ids);
+            foreach ($visits as &$v) {
+                $stage = isset($stages[(int) $v->id]) ? $stages[(int) $v->id] : array();
+                $v->stage_code = !empty($stage['stage_code']) ? $stage['stage_code'] : '-';
+                $v->medicines = $this->get_visit_medicines((int) $v->id);
+                $v->level_title = !empty($v->level_title) ? $v->level_title : '-';
+                $v->level_code = !empty($v->level_code) ? $v->level_code : '-';
                 $v->visit_code = !empty($v->visit_no) ? $v->visit_no : ('#' . (int) $v->id);
             }
         }
@@ -5634,12 +5690,14 @@ class Patientflow_model extends CI_Model
      * Bulk save multiple medicines as prescriptions for a visit.
      * Skips medicines already prescribed for this visit (avoid duplicates).
      */
-    public function save_prescriptions_bulk($visit_id, $medicines, $staff_id, $broad_area_series = ''){
+    public function save_prescriptions_bulk($visit_id, $medicines, $staff_id, $broad_area_series = '', $updated_by = null){
         if (!$this->db->table_exists('patient_flow_prescription')) {
             return array('status' => false, 'message' => 'Prescription table not found.');
         }
         $visit_id = (int) $visit_id;
         $staff_id = (int) $staff_id;
+        $updated_by = (int) ($updated_by ?: $staff_id);
+        $now = date('Y-m-d H:i:s');
         if ($visit_id <= 0 || !is_array($medicines) || empty($medicines)) {
             return array('status' => false, 'message' => 'Invalid parameters.');
         }
@@ -5694,7 +5752,7 @@ class Patientflow_model extends CI_Model
                 // Reactivate if it was previously deactivated.
                 if (in_array($medicine_id, $existing_inactive_med_ids, true)) {
                     $this->db->where('visit_id', $visit_id)->where('medicine_id', $medicine_id)
-                        ->update('patient_flow_prescription', array('is_active' => 1));
+                        ->update('patient_flow_prescription', array('is_active' => 1, 'updated_by' => $updated_by, 'updated_at' => $now));
                     $saved++;
                 }
                 $skipped++;
@@ -5715,6 +5773,7 @@ class Patientflow_model extends CI_Model
                 'prescribed_at' => date('Y-m-d H:i:s'), 'clinical_approval' => 'pending',
                 'payment_confirmed' => $payment_confirmed, 'fx_second_senior_approval' => ($is_fx ? 0 : 0),
                 'name_hidden' => 1, 'is_active' => 1,
+                'updated_by' => $updated_by, 'updated_at' => $now,
             );
             $this->db->insert('patient_flow_prescription', $data);
             $saved++;
@@ -5730,11 +5789,11 @@ class Patientflow_model extends CI_Model
         if (!empty($checkedMedIds)) {
             $this->db->where('visit_id', $visit_id)->where('is_active', 1)
                 ->where_not_in('medicine_id', $checkedMedIds)
-                ->update('patient_flow_prescription', array('is_active' => 0));
+                ->update('patient_flow_prescription', array('is_active' => 0, 'updated_by' => $updated_by, 'updated_at' => $now));
         } else {
             // No medicines selected: deactivate all prescriptions for this visit.
             $this->db->where('visit_id', $visit_id)->where('is_active', 1)
-                ->update('patient_flow_prescription', array('is_active' => 0));
+                ->update('patient_flow_prescription', array('is_active' => 0, 'updated_by' => $updated_by, 'updated_at' => $now));
         }
         // Save reason and broad_area_series on the visit record if any FX/E medicine was prescribed
         if ($hasUniversal && $universalReason !== '') {
