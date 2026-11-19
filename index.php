@@ -56,7 +56,7 @@
  
     ini_set('max_execution_time', 3000); // 0 = Unlimited
 	
-	define('ENVIRONMENT', 'development');
+	define('ENVIRONMENT', 'production');
 
 /*
  *---------------------------------------------------------------
