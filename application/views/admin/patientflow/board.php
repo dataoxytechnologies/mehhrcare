@@ -303,6 +303,9 @@ if (!function_exists('pf_ct_age_label')) {
 <th class="text-center"><?php echo $this->lang->line('current_level'); ?></th>
 <th class="text-center"><?php echo $this->lang->line('stage') ?: 'Stage'; ?></th>
 <th><?php echo $this->lang->line('payment'); ?></th>
+<th class="text-center"><?php echo $this->lang->line('charge_amount') ?: 'Charge Amount'; ?></th>
+<th class="text-center"><?php echo $this->lang->line('charge_status') ?: 'Charge Status'; ?></th>
+<!-- <th class="text-center"><?php echo $this->lang->line('charge_reference') ?: 'Charge Ref'; ?></th> -->
                     <th><?php echo $this->lang->line('programme_status') ?: 'Programme Status'; ?></th>
                     <th><?php echo $this->lang->line('programme_name') ?: 'Programme'; ?></th>
                     <th class="text-center"><?php echo $this->lang->line('approval_status') ?: 'Approval'; ?></th>
@@ -432,7 +435,26 @@ if (!function_exists('pf_ct_age_label')) {
                                         $pf_mode_label = $pf_payment_mode !== '' ? ucfirst($pf_payment_mode) : ($this->lang->line('not_set') ?: 'Not Set');
                                         ?>
                                         <div class="mt-1"><span class="badge <?php echo $pf_mode_badge_class; ?>" title="<?php echo $this->lang->line('payment_mode') ?: 'Payment Mode'; ?>"><?php echo $pf_mode_label; ?></span></div>
-                                </td>
+
+                                        <?php
+                                        // Charge collection badge: amount + status for the patient charge.
+                                        $pf_charge_amount = (float) ($v->charge_amount ?: 0);
+                                        $pf_charge_status = !empty($v->charge_status) ? (string) $v->charge_status : 'pending';
+                                        $pf_charge_paid   = ($pf_charge_status === 'paid');
+                                        $pf_charge_class  = $pf_charge_paid ? 'bg-success-subtle text-success-emphasis' : 'bg-warning-subtle text-warning-emphasis';
+                                        $pf_charge_label  = $pf_charge_paid ? ($this->lang->line('charge_paid') ?: 'Charge Paid') : ($this->lang->line('charge_pending') ?: 'Charge Pending');
+                                        ?>
+                                    </td>
+                                    <td class="align-middle text-center">
+                                        <?php echo number_format($pf_charge_amount, 2); ?>
+                                    </td>
+                                    <td class="align-middle text-center">
+                                        <span class="badge <?php echo $pf_charge_class; ?>" title="<?php echo $this->lang->line('charge') ?: 'Charge'; ?>"><?php echo $pf_charge_label; ?></span>
+                                        <?php echo !empty($v->charge_reference) ? htmlspecialchars((string) $v->charge_reference) : ''; ?>
+                                    </td>
+                                    <!-- <td class="align-middle text-center">
+                                        <?php echo !empty($v->charge_reference) ? htmlspecialchars((string) $v->charge_reference) : '<span class="text-muted">—</span>'; ?>
+                                    </td> -->
                                 <td class="align-middle">
                                     <?php
                                     $pf_programme = !empty($v->programme_status) ? $v->programme_status : '';
@@ -696,6 +718,25 @@ if (!function_exists('pf_ct_age_label')) {
                                             <i class="fa fa-history"></i> &nbsp;<?php echo $this->lang->line('view_patient_history') ?: 'View Patient History'; ?>
                                         </a>
                                         <?php } ?>
+                                        <?php if ($pf_owned && !empty($v->level_can_collect_charge) && empty($v->charge_reference) && (string) ($v->charge_status ?: 'pending') !== 'paid' && (float) ($v->charge_amount) > 0): ?>
+                                        <button type="button" class="btn btn-sm btn-outline-primary w-100 mb-1 pf-collect-charge"
+                                                data-visit-id="<?php echo (int) $v->id; ?>"
+                                                data-charge-amount="<?php echo (float) ($v->charge_amount ?: 0); ?>"
+                                                data-patient-name="<?php echo addslashes((string) $v->patient_name); ?>"
+                                                data-bs-toggle="tooltip"
+                                                title="<?php echo $this->lang->line('collect_charge') ?: 'Collect Charge'; ?>">
+                                            <i class="fas fa-money-bill-wave"></i> &nbsp;<?php echo $this->lang->line('collect_charge') ?: 'Collect Charge'; ?>
+                                        </button>
+                                        <?php endif; ?>
+                                        <?php if ($pf_owned && !empty($v->level_can_collect_charge) && !empty($v->charge_reference) && (string) ($v->charge_status ?: 'pending') !== 'paid'): ?>
+                                        <button type="button" class="btn btn-sm btn-outline-success w-100 mb-1 pf-mark-charge-paid"
+                                                data-visit-id="<?php echo (int) $v->id; ?>"
+                                                data-charge-reference="<?php echo htmlspecialchars((string) $v->charge_reference); ?>"
+                                                data-bs-toggle="tooltip"
+                                                title="<?php echo $this->lang->line('mark_charge_paid') ?: 'Charge Mark as Paid'; ?>">
+                                            <i class="fas fa-check-circle"></i> &nbsp;<?php echo $this->lang->line('mark_charge_paid') ?: 'Charge Mark as Paid'; ?>
+                                        </button>
+                                        <?php endif; ?>
 
 
 
@@ -4014,6 +4055,51 @@ $(document).on('click', '.pf-dispatch-pharmacy', function () {
     }, 'json').fail(function () {
         $btn.prop('disabled', false).html('<i class="fas fa-truck-medical"></i> Pharmacy Dispatch');
         errorMsg('Server error while dispatching.');
+    });
+});
+
+// Collect Charge: mark patient charge as paid via Cash / Online / Razorpay.
+$(document).on('click', '.pf-collect-charge', function () {
+    var visitId = $(this).data('visit-id');
+    if (!visitId) {
+        errorMsg('Invalid visit.');
+        return;
+    }
+    var chargeAmount = $(this).data('charge-amount') || 0;
+    if (chargeAmount <= 0) {
+        errorMsg('No charge amount due for this visit.');
+        return;
+    }
+    // Redirect to the charge collection page (same pattern as billing payment page).
+    window.location.href = '<?php echo site_url('admin/patientflow/charge_pay/'); ?>' + visitId;
+});
+
+// Mark Charge as Paid: mark an existing charge reference as paid.
+$(document).on('click', '.pf-mark-charge-paid', function () {
+    var $btn = $(this);
+    var visitId = $btn.data('visit-id');
+    if (!visitId) {
+        errorMsg('Invalid visit.');
+        return;
+    }
+    if (!confirm('Mark this charge as paid?')) {
+        return;
+    }
+    $btn.prop('disabled', true).html('<i class="fa fa-spinner fa-spin me-1"></i> Marking...');
+    $.post('<?php echo site_url('admin/patientflow/collect_charge/'); ?>' + visitId, {
+        action: 'mark_paid',
+        payment_mode: 'Cash'
+    }, function (res) {
+        $btn.prop('disabled', false).html('<i class="fas fa-check-circle"></i> Charge Mark as Paid');
+        if (res && res.status) {
+            successMsg(res.message || 'Charge marked as paid.');
+            setTimeout(function () { window.location.reload(); }, 500);
+        } else {
+            errorMsg(res && res.message ? res.message : 'Failed to mark charge as paid.');
+        }
+    }, 'json').fail(function () {
+        $btn.prop('disabled', false).html('<i class="fas fa-check-circle"></i> Charge Mark as Paid');
+        errorMsg('Server error while marking charge as paid.');
     });
 });
 

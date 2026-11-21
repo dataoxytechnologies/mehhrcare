@@ -128,6 +128,19 @@ class Patientflow extends Admin_Controller
         );
         $data['filter_status']     = $filter_status;
 
+        // Backfill charge_amount for existing visits that have an OPD linked
+        // but no charge amount yet (e.g. created before this field existed).
+        if (!empty($data['visits'])) {
+            foreach ($data['visits'] as $k => $vv) {
+                if (!empty($vv->opd_id) && empty($vv->charge_amount)) {
+                    $net = $this->patientflow_model->sync_visit_amount_from_opd((int) $vv->id);
+                    if ($net !== null) {
+                        $data['visits'][$k]->charge_amount = $net;
+                    }
+                }
+            }
+        }
+
         // Constitution lookups for the case-taking modal selects (BOD/FSH/NOS
         // slots come from the body-build / face-shape / nose-type masters).
         $data['body_builds']       = $this->patientflow_model->get_constitution_lookups('body', true);
@@ -385,6 +398,7 @@ class Patientflow extends Admin_Controller
             'current_level_id'    => $first_level ? $first_level->id : null,
             'level_started_at'    => date('Y-m-d H:i:s'),
             'amount'              => 0,
+            'charge_amount'       => 0,
             'payment_status'      => 'pending',
             'created_by'          => $this->customlib->getStaffID(),
         ));
@@ -2224,6 +2238,327 @@ class Patientflow extends Admin_Controller
     }
 
     /**
+     * AJAX: Collect patient charge for a visit (Cash / Online / Razorpay).
+     * Guard: staff owning the visit's current level with can_collect_charge
+     * flag, or superadmin.
+     */
+    public function collect_charge($visit_id = 0)
+    {
+        if (!$this->rbac->hasPrivilege('patient_flow', 'can_view')) {
+            echo json_encode(['status' => false, 'message' => 'Permission denied']);
+            return;
+        }
+
+        $visit_id = intval($visit_id);
+        if (!$visit_id) {
+            echo json_encode(['status' => false, 'message' => 'Invalid visit.']);
+            return;
+        }
+
+        $ctx   = $this->pf_context();
+        $visit = $this->patientflow_model->get_visit($visit_id);
+        if (!$visit) {
+            echo json_encode(['status' => false, 'message' => 'Visit not found.']);
+            return;
+        }
+
+        // Charge-collection permission: superadmin, or role owning the
+        // visit's current level with can_collect_charge flag.
+        $is_collector = $ctx['is_superadmin'];
+        if (!$is_collector) {
+            $owns_level = false;
+            foreach ($ctx['my_levels'] as $ml) {
+                if ((int) $ml->id === (int) $visit->current_level_id) {
+                    $owns_level = true;
+                    break;
+                }
+            }
+            $is_collector = $owns_level && !empty($visit->level_can_collect_charge);
+        }
+        if (!$is_collector) {
+            echo json_encode(['status' => false, 'message' => 'You are not allowed to collect charges for this visit.']);
+            return;
+        }
+
+        $action   = strtolower(trim((string) $this->input->post('action', true)));
+        $mode     = strtolower(trim((string) $this->input->post('payment_mode', true)));
+        $valid_modes = array('cash', 'online', 'razorpay');
+        if (!in_array($mode, $valid_modes, true)) {
+            echo json_encode(['status' => false, 'message' => 'Invalid payment mode.']);
+            return;
+        }
+        $mode = ucfirst($mode);
+
+        $role_id = null;
+        $role_json = $this->customlib->getStaffRole();
+        if ($role_json) {
+            $role_data = json_decode($role_json, true);
+            $role_id = isset($role_data['id']) ? $role_data['id'] : null;
+        }
+
+        $staff_id = $this->customlib->getStaffID();
+
+        // --- Generate charge reference (cash payment) ---
+        if ($action === 'generate_reference' && $mode === 'Cash') {
+            if (!empty($visit->charge_reference)) {
+                echo json_encode(['status' => false, 'message' => 'Charge reference already exists.']);
+                return;
+            }
+            $reference = $this->patientflow_model->generate_charge_reference($visit_id);
+            if (!$reference) {
+                echo json_encode(['status' => false, 'message' => 'Failed to generate charge reference.']);
+                return;
+            }
+            $result = $this->patientflow_model->set_charge_status(
+                $visit_id, 'pending', 'Cash', $staff_id, $role_id,
+                ['charge_reference' => $reference]
+            );
+            echo json_encode(array_merge($result, ['charge_reference' => $reference]));
+            return;
+        }
+
+        // --- Mark charge as paid (reference already exists, no new ref) ---
+        if ($action === 'mark_paid') {
+            if (empty($visit->charge_reference)) {
+                echo json_encode(['status' => false, 'message' => 'No charge reference to mark paid.']);
+                return;
+            }
+            $result = $this->patientflow_model->set_charge_status(
+                $visit_id, 'paid', $mode, $staff_id, $role_id
+            );
+            echo json_encode($result);
+            return;
+        }
+
+        // --- Legacy: collect charge (cash generates reference) ---
+        if ((string) $visit->charge_status === 'paid') {
+            echo json_encode(['status' => false, 'message' => 'Charge already collected.']);
+            return;
+        }
+
+        if ($mode === 'Cash') {
+            $reference = $this->patientflow_model->generate_charge_reference($visit_id);
+            if (!$reference) {
+                echo json_encode(['status' => false, 'message' => 'Failed to generate charge reference.']);
+                return;
+            }
+            $result = $this->patientflow_model->set_charge_status(
+                $visit_id, 'pending', 'Cash', $staff_id, $role_id,
+                ['charge_reference' => $reference]
+            );
+            echo json_encode(array_merge($result, ['charge_reference' => $reference]));
+        } else {
+            $result = $this->patientflow_model->set_charge_status(
+                $visit_id, 'paid', $mode, $staff_id, $role_id
+            );
+            echo json_encode($result);
+        }
+    }
+
+    /**
+     * Razorpay callback for patient charge collection.
+     */
+    public function charge_gateway_callback()
+    {
+        $transactionid = $_POST['razorpay_payment_id'];
+        $payment_data  = $this->session->userdata('charge_payment_data');
+
+        if (empty($payment_data) || $payment_data['payment_for'] !== 'patientflow_charge') {
+            echo json_encode(array('insert_id' => 0, 'error' => 'Invalid charge payment session.'));
+            return;
+        }
+
+        $visit_id = (int) $payment_data['visit_id'];
+        $visit = $this->patientflow_model->get_visit($visit_id);
+        if (!$visit) {
+            echo json_encode(array('status' => false, 'message' => 'Visit not found.'));
+            return;
+        }
+
+        if ((string) $visit->charge_status === 'paid') {
+            echo json_encode(array('status' => true, 'message' => 'Charge already collected.'));
+            return;
+        }
+
+        $this->load->model('payment_model');
+
+        $save_record = array(
+            "processing_charge_type"    => $payment_data["charge_type"],
+            "gateway_processing_charge" => $payment_data["gateway_processing_charge"],
+            'case_reference_id'         => $payment_data["case_reference_id"],
+            'type'                      => "charge",
+            'amount'                    => $payment_data['deposit_amount'],
+            'payment_mode'              => 'Online',
+            'payment_date'              => date('Y-m-d H:i:s'),
+            'note'                      => "Online charge through Razorpay TXN ID: " . $transactionid,
+            'patient_id'                => !empty($payment_data['patient_id']) ? $payment_data['patient_id'] : 0,
+        );
+        $save_record["visit_id"] = $visit_id;
+
+        $insert_id = $this->payment_model->insertOnlinePaymentInTransactions($save_record);
+
+        // Mark the charge as collected (duplicate-safe).
+        $role_id = null;
+        $role_json = $this->customlib->getStaffRole();
+        if ($role_json) {
+            $role_data = json_decode($role_json, true);
+            $role_id = isset($role_data['id']) ? $role_data['id'] : null;
+        }
+        $this->patientflow_model->set_charge_status(
+            $visit_id,
+            'paid',
+            'Online',
+            $this->customlib->getStaffID(),
+            $role_id
+        );
+
+        echo json_encode(array('status' => true, 'insert_id' => $insert_id));
+    }
+
+    /**
+     * Front-end charge collection page: loads when the "Collect Charge" button
+     * is clicked from the board. Renders a payment view for the patient's
+     * charge amount only (Cash / Online / Razorpay), without any billing
+     * reference.
+     */
+    public function charge_pay($visit_id = 0)
+    {
+        if (!$this->rbac->hasPrivilege('patient_flow', 'can_view')) {
+            access_denied();
+            return;
+        }
+
+        $visit_id = intval($visit_id);
+        if (!$visit_id) {
+            $this->session->set_flashdata('error_msg', 'Invalid visit.');
+            redirect('admin/patientflow');
+            return;
+        }
+
+        $visit = $this->patientflow_model->get_visit($visit_id);
+        if (!$visit) {
+            $this->session->set_flashdata('error_msg', 'Visit not found.');
+            redirect('admin/patientflow');
+        }
+
+        // Duplicate collection prevention: do not open the charge page for
+        // an already-paid visit charge.
+        if (!empty($visit->charge_status) && $visit->charge_status === 'paid') {
+            $this->session->set_flashdata('info_msg', 'Charge has already been collected for this visit.');
+            redirect('admin/patientflow');
+        }
+
+        $charge_amount = (float) ($visit->charge_amount ?: 0);
+        if ($charge_amount <= 0) {
+            $this->session->set_flashdata('error_msg', 'No charge amount due for this visit.');
+            redirect('admin/patientflow');
+        }
+
+        $this->load->model('patient_model');
+
+        $data['visit']            = $visit;
+        $data['patient']          = (array) $visit;
+        $data['charge_amount']    = $charge_amount;
+        $data['currency_symbol']  = $this->customlib->getHospitalCurrencyFormat();
+        $data['patient_name']     = $visit->patient_name;
+        $data['visit_no']         = $visit->visit_no;
+        $data['payment_mode']     = $this->config->item('payment_mode');
+        $data['setting']          = $this->setting_model->get();
+
+        // If Razorpay is the active payment gateway, store the charge payment
+        // session and redirect to Razorpay checkout.
+        $active_method = $this->paymentsetting_model->getActiveMethod();
+        if (!empty($active_method) && $active_method->payment_type === 'razorpay') {
+            $charge_type   = !empty($active_method->charge_type) ? $active_method->charge_type : '';
+            $charge_value  = !empty($active_method->charge_value) ? (float) $active_method->charge_value : 0;
+            $gateway_processing_charge = 0;
+            if ($charge_type === 'percentage') {
+                $gateway_processing_charge = (($charge_amount * $charge_value) / 100);
+            } elseif ($charge_type === 'fix') {
+                $gateway_processing_charge = $charge_value;
+            }
+            $charge_payment_data = array(
+                'payment_for'                => 'patientflow_charge',
+                'deposit_amount'             => $charge_amount,
+                'visit_id'                   => (int) $visit->id,
+                'case_reference_id'          => 0,
+                'charge_type'                => $charge_type,
+                'gateway_processing_charge'  => $gateway_processing_charge,
+                'key_id'                     => !empty($active_method->api_publishable_key) ? $active_method->api_publishable_key : '',
+                'key_secret'                 => !empty($active_method->api_secret_key) ? $active_method->api_secret_key : '',
+            );
+            $this->session->set_userdata('charge_payment_data', $charge_payment_data);
+            redirect(base_url('admin/patientflow/charge_gateway'));
+        }
+
+        $this->load->view('admin/patientflow/charge_pay', $data);
+    }
+
+    /**
+     * Razorpay gateway entry point for charge collection.
+     * Redirects to Razorpay checkout for the charge amount.
+     */
+    public function charge_gateway()
+    {
+        if (!$this->rbac->hasPrivilege('patient_flow', 'can_view')) {
+            access_denied();
+            return;
+        }
+
+        $charge_payment_data = $this->session->userdata('charge_payment_data');
+        if (empty($charge_payment_data) || $charge_payment_data['payment_for'] !== 'patientflow_charge') {
+            $this->session->set_flashdata('error_msg', 'Invalid charge payment session.');
+            redirect('admin/patientflow');
+            return;
+        }
+
+        $visit_id = (int) ($charge_payment_data['visit_id'] ?? 0);
+        $visit    = $this->patientflow_model->get_visit($visit_id);
+        if (!$visit) {
+            $this->session->set_flashdata('error_msg', 'Visit not found.');
+            redirect('admin/patientflow');
+            return;
+        }
+
+        if ((string) $visit->charge_status === 'paid') {
+            $this->session->set_flashdata('info_msg', 'Charge has already been collected for this visit.');
+            redirect('admin/patientflow');
+        }
+
+        $charge_amount = (float) ($charge_payment_data['deposit_amount'] ?? 0);
+        if ($charge_amount <= 0) {
+            $this->session->set_flashdata('error_msg', 'No charge amount due.');
+            redirect('admin/patientflow');
+            return;
+        }
+
+        $active_method = $this->paymentsetting_model->getActiveMethod();
+        $setting       = !empty($this->setting_model->get()[0]) ? $this->setting_model->get()[0] : array();
+
+        $data['key_id']                  = !empty($active_method->api_publishable_key) ? $active_method->api_publishable_key : '';
+        $data['merchant_order_id']       = 'charge_' . time() . '01';
+        $data['txnid']                   = 'charge_' . time() . '02';
+        $data['name']                    = !empty($visit->patient_name) ? $visit->patient_name : 'Patient';
+        $data['title']                   = 'Online Charge Collection through Razorpay';
+        $data['case_reference_id']       = $charge_payment_data['case_reference_id'] ?? 0;
+        $data['amount']                  = $charge_amount;
+        $data['currency']                = !empty($setting['currency']) ? $setting['currency'] : 'INR';
+        $data['hospital_name']           = !empty($setting['name']) ? $setting['name'] : '';
+        $data['image']                   = !empty($setting['image']) ? $setting['image'] : '';
+        $data['return_url']              = base_url('admin/patientflow/charge_gateway_callback');
+        $data['gateway_processing_charge'] = $charge_payment_data['gateway_processing_charge'];
+        $total                           = ($charge_amount + $charge_payment_data['gateway_processing_charge']);
+        $data['total']                   = $total * 100;
+        $data['visit']                   = $visit;
+        $data['visit_id']                = $visit_id;
+        $data['payment_ref']             = $visit->visit_no;
+
+        $this->load->view('layout/header', $data);
+        $this->load->view('admin/patientflow/charge_razorpay', $data);
+        $this->load->view('layout/footer', $data);
+    }
+
+    /**
      * Full-page view: the ordered chain of levels + role hierarchy editor.
      */
     // ============================================================
@@ -2320,6 +2655,7 @@ class Patientflow extends Admin_Controller
             'current_level_id'      => $first_level->id,
             'level_started_at'      => date('Y-m-d H:i:s'),
             'amount'                => $amount,
+            'charge_amount'         => $amount,
             'payment_status'        => 'pending',
             'created_by'            => $this->customlib->getStaffID(),
         ));
@@ -2460,6 +2796,7 @@ class Patientflow extends Admin_Controller
                 'current_level_id'      => $first_level->id,
                 'level_started_at'      => date('Y-m-d H:i:s'),
                 'amount'                => 0,
+                'charge_amount'         => 0,
                 'payment_status'        => 'pending',
                 'created_by'            => $this->customlib->getStaffID(),
             ));
@@ -2572,6 +2909,7 @@ class Patientflow extends Admin_Controller
         $generate_bill = $this->input->post('generate_bill');
         $can_generate_pharmacy_bill = $this->input->post('can_generate_pharmacy_bill');
         $show_patient_history = $this->input->post('show_patient_history');
+        $can_collect_charge = $this->input->post('can_collect_charge');
 
         $this->form_validation->set_rules('title', $this->lang->line('title'), 'trim|required|max_length[120]');
         $this->form_validation->set_rules('code', $this->lang->line('code'), 'trim|required|max_length[20]');
@@ -2622,7 +2960,8 @@ class Patientflow extends Admin_Controller
             'generate_bill' => $generate_bill ? 1 : 0,
             'can_generate_pharmacy_bill' => $can_generate_pharmacy_bill ? 1 : 0,
             'show_patient_history' => $show_patient_history ? 1 : 0,
-            'is_active'    => 1,
+            'can_collect_charge'   => $can_collect_charge ? 1 : 0,
+            'is_active'            => 1,
         );
 
         if ($id) {

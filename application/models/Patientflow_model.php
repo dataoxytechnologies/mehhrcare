@@ -90,6 +90,26 @@ class Patientflow_model extends CI_Model
             if (!$this->db->field_exists('payment_mode', 'patient_flow_visits')) {
                 $this->db->query("ALTER TABLE `patient_flow_visits` ADD COLUMN `payment_mode` VARCHAR(20) NULL DEFAULT NULL COMMENT 'Cash | Online | Razorpay — how the programme bill was settled' AFTER `cash_received`");
             }
+            // Charge collection fields: amount to collect, status, mode, collector.
+            if (!$this->db->field_exists('charge_amount', 'patient_flow_visits')) {
+                $this->db->query("ALTER TABLE `patient_flow_visits` ADD COLUMN `charge_amount` DECIMAL(12,2) NULL DEFAULT NULL COMMENT 'charge amount to collect from patient' AFTER `payment_mode`");
+            }
+            // Charge reference: generated on cash payment, similar to billing_reference.
+            if (!$this->db->field_exists('charge_reference', 'patient_flow_visits')) {
+                $this->db->query("ALTER TABLE `patient_flow_visits` ADD COLUMN `charge_reference` VARCHAR(50) NULL DEFAULT NULL COMMENT 'charge reference generated on cash payment' AFTER `charge_amount`");
+            }
+            if (!$this->db->field_exists('charge_status', 'patient_flow_visits')) {
+                $this->db->query("ALTER TABLE `patient_flow_visits` ADD COLUMN `charge_status` VARCHAR(20) NOT NULL DEFAULT 'pending' COMMENT 'pending | paid' AFTER `charge_amount`");
+            }
+            if (!$this->db->field_exists('charge_payment_mode', 'patient_flow_visits')) {
+                $this->db->query("ALTER TABLE `patient_flow_visits` ADD COLUMN `charge_payment_mode` VARCHAR(20) NULL DEFAULT NULL COMMENT 'Cash | Online | Razorpay — how the charge was settled' AFTER `charge_status`");
+            }
+            if (!$this->db->field_exists('charge_collected_at', 'patient_flow_visits')) {
+                $this->db->query("ALTER TABLE `patient_flow_visits` ADD COLUMN `charge_collected_at` DATETIME NULL DEFAULT NULL COMMENT 'when the charge was collected' AFTER `charge_payment_mode`");
+            }
+            if (!$this->db->field_exists('charge_collected_by', 'patient_flow_visits')) {
+                $this->db->query("ALTER TABLE `patient_flow_visits` ADD COLUMN `charge_collected_by` INT(11) NULL DEFAULT NULL COMMENT '-> staff.id who collected the charge' AFTER `charge_collected_at`");
+            }
             // Programme status: enroll | declined | deferred.
             // Only a staff whose level has can_change_programme_status may change it.
             if (!$this->db->field_exists('programme_status', 'patient_flow_visits')) {
@@ -154,6 +174,10 @@ class Patientflow_model extends CI_Model
             // 11) Show patient history permission
             if (!$this->db->field_exists('show_patient_history', 'patient_flow_levels')) {
                 $this->db->query("ALTER TABLE `patient_flow_levels` ADD COLUMN `show_patient_history` TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'staff owning this level may view patient history' AFTER `generate_bill`");
+            }
+            // 12) Collect patient charge permission
+            if (!$this->db->field_exists('can_collect_charge', 'patient_flow_levels')) {
+                $this->db->query("ALTER TABLE `patient_flow_levels` ADD COLUMN `can_collect_charge` TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'staff owning this level may collect patient charge' AFTER `show_patient_history`");
             }
         }
         // 6) Level permission: staff whose role owns a level with this flag
@@ -1316,10 +1340,11 @@ class Patientflow_model extends CI_Model
                            l.can_change_status AS level_can_change_status, l.can_change_programme_status AS level_can_change_programme_status,
                            l.can_generate_invoice AS level_can_generate_invoice, l.can_generate_pharmacy_bill AS level_can_generate_pharmacy_bill,
                            l.can_case_taking AS level_can_case_taking, l.can_view_case_taking AS level_can_view_case_taking,
-                           l.can_prescribe_medicine AS level_can_prescribe_medicine, l.print_vial AS level_print_vial, l.generate_bill AS level_generate_bill,
-                           pl.code AS next_code, pl.title AS next_title, pl.id AS next_level_id,
-                           pv.id AS prev_level_id, pv.code AS prev_code, pv.title AS prev_title,
-                           sc.name AS case_taking_by_name, sc.surname AS case_taking_by_surname, sc.employee_id AS case_taking_by_employee_id');
+                            l.can_prescribe_medicine AS level_can_prescribe_medicine, l.print_vial AS level_print_vial, l.generate_bill AS level_generate_bill,
+                            l.can_collect_charge AS level_can_collect_charge,
+                            pl.code AS next_code, pl.title AS next_title, pl.id AS next_level_id,
+                            pv.id AS prev_level_id, pv.code AS prev_code, pv.title AS prev_title,
+                            sc.name AS case_taking_by_name, sc.surname AS case_taking_by_surname, sc.employee_id AS case_taking_by_employee_id');
         $this->db->from('patient_flow_visits v');
         $this->db->join('patients p', 'p.id = v.patient_id', 'left');
         $this->db->join('patients pp', 'pp.id = v.partner_patient_id', 'left');
@@ -1362,6 +1387,7 @@ class Patientflow_model extends CI_Model
                             l.can_case_taking AS level_can_case_taking, l.can_view_case_taking AS level_can_view_case_taking,
                             l.can_prescribe_medicine AS level_can_prescribe_medicine, l.print_vial AS level_print_vial, l.generate_bill AS level_generate_bill,
                             l.show_patient_history AS level_show_patient_history,
+                            l.can_collect_charge AS level_can_collect_charge,
                             pl.code AS next_code, pl.title AS next_title, pl.id AS next_level_id,
                            pv.id AS prev_level_id, pv.code AS prev_code, pv.title AS prev_title,
                            od.case_reference_id AS opd_case_reference, od.created_at AS opd_created_at,
@@ -1801,6 +1827,124 @@ class Patientflow_model extends CI_Model
             'message' => $received ? 'Cash received.' : 'Cash received status cleared.',
         );
     }
+
+    /**
+     * Set / toggle the charge collection status of a visit.
+     * Guard (enforce in the controller): a staff whose level has the
+     * can_collect_charge flag checked in the Levels form.
+     *
+     * @param int    $visit_id
+     * @param string $status   'pending' | 'paid'
+     * @param string $mode     'Cash' | 'Online' | 'Razorpay'
+     * @param int    $staff_id
+     * @param int    $role_id
+     * @return array ['status'=>bool, 'message'=>string]
+     */
+    public function set_charge_status($visit_id, $status, $mode, $staff_id, $role_id, $extra = [])
+    {
+        $visit = $this->get_visit($visit_id);
+        if (!$visit) {
+            return array('status' => false, 'message' => 'Visit not found.');
+        }
+
+        $status   = in_array($status, array('pending', 'paid'), true) ? $status : 'pending';
+        $mode     = in_array($mode, array('Cash', 'Online', 'Razorpay'), true) ? $mode : null;
+        $collected = ($status === 'paid') ? date('Y-m-d H:i:s') : null;
+
+        $update = array('charge_status' => $status);
+        if (!empty($extra['charge_reference'])) {
+            $update['charge_reference'] = $extra['charge_reference'];
+        }
+        if ($mode !== null) {
+            $update['charge_payment_mode'] = $mode;
+        }
+        if ($collected !== null) {
+            $update['charge_collected_at'] = $collected;
+            $update['charge_collected_by'] = (int) $staff_id;
+        }
+
+        $this->db->where('id', $visit_id);
+        $this->db->update('patient_flow_visits', $update);
+
+        $this->add_log(array(
+            'visit_id'      => $visit_id,
+            'from_level_id' => $visit->current_level_id,
+            'to_level_id'   => $visit->current_level_id,
+            'action'        => 'charge_collect',
+            'remarks'       => $status . ' (' . ($mode ?: '-') . ')',
+            'acted_by'      => $staff_id,
+            'acted_role_id' => $role_id,
+        ));
+
+        return array(
+            'status'  => true,
+            'message' => $status === 'paid' ? 'Charge collected.' : 'Charge marked pending.',
+        );
+    }
+
+    /**
+     * Generate a charge reference similar to billing reference.
+     * Format: CR-KTR-YYMMDD-######
+     *
+     * @param int $visit_id
+     * @return string|false
+     */
+    public function generate_charge_reference($visit_id)
+    {
+        $visit_id = intval($visit_id);
+        if (!$visit_id) {
+            return false;
+        }
+        $prefix = 'CR-KTR-';
+        $datePart = date('ymd');
+        // Find the next sequence number for today.
+        $this->db->select('charge_reference');
+        $this->db->from('patient_flow_visits');
+        $this->db->like('charge_reference', $prefix . $datePart, 'after');
+        $this->db->order_by('charge_reference', 'desc');
+        $this->db->limit(1);
+        $row = $this->db->get()->row();
+        $seq = 1;
+        if ($row && !empty($row->charge_reference)) {
+            $suffix = substr((string) $row->charge_reference, strlen($prefix . $datePart));
+            if (is_numeric($suffix)) {
+                $seq = (int) $suffix + 1;
+            }
+        }
+        $reference = $prefix . $datePart . str_pad($seq, 6, '0', STR_PAD_LEFT);
+        // Ensure uniqueness.
+        $this->db->where('charge_reference', $reference);
+        $exists = $this->db->get('patient_flow_visits')->num_rows();
+        if ($exists > 0) {
+            return false;
+        }
+        return $reference;
+    }
+
+    /**
+     * Return charge summary for a visit board row.
+     *
+     * @param int $visit_id
+     * @return array ['amount'=>float, 'status'=>string, 'mode'=>string|null, 'collected_at'=>string|null, 'collected_by'=>int|null]
+     */
+    public function get_charge_summary($visit_id)
+    {
+        $visit = $this->db->select('charge_amount, charge_status, charge_payment_mode, charge_collected_at, charge_collected_by')
+            ->from('patient_flow_visits')
+            ->where('id', (int) $visit_id)
+            ->get()->row();
+        if (!$visit) {
+            return array('amount' => 0.0, 'status' => 'pending', 'mode' => null, 'collected_at' => null, 'collected_by' => null);
+        }
+        return array(
+            'amount'       => (float) ($visit->charge_amount ?: 0),
+            'status'       => $visit->charge_status,
+            'mode'         => $visit->charge_payment_mode,
+            'collected_at' => $visit->charge_collected_at,
+            'collected_by' => $visit->charge_collected_by,
+        );
+    }
+
     /**
      * Allowed programme status values for a visit.
      */
@@ -2889,7 +3033,10 @@ class Patientflow_model extends CI_Model
         }
         $net = $this->get_opd_net_amount($visit->opd_id);
         $this->db->where('id', (int) $visit_id);
-        $this->db->update('patient_flow_visits', array('amount' => $net));
+        $this->db->update('patient_flow_visits', array(
+            'amount'        => $net,
+            'charge_amount' => $net,
+        ));
         return $net;
     }
 
@@ -2904,7 +3051,10 @@ class Patientflow_model extends CI_Model
             return false;
         }
         $this->db->where('id', (int) $visit_id);
-        return $this->db->update('patient_flow_visits', array('opd_id' => (int) $opd_id));
+        $this->db->update('patient_flow_visits', array('opd_id' => (int) $opd_id));
+        // Sync the charge amount from the linked OPD's patient_charges so the
+        // board shows the correct charge to collect.
+        return $this->sync_visit_amount_from_opd((int) $visit_id) !== null;
     }
 
     /**
@@ -2943,6 +3093,8 @@ class Patientflow_model extends CI_Model
         $this->db->where('id', (int) $visit_id);
         $this->db->where('(opd_id IS NULL OR opd_id = 0)', null, false);
         $this->db->update('patient_flow_visits', array('opd_id' => (int) $opd_id));
+        // Sync charge amount from the linked OPD.
+        $this->sync_visit_amount_from_opd((int) $visit_id);
         return $this->db->affected_rows() > 0 ? $opd_id : 0;
     }
 

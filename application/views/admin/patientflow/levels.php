@@ -66,6 +66,7 @@ defined('BASEPATH') or exit('No direct script access allowed');
                     <th class="text-center"><?php echo $this->lang->line('print_vial') ?: 'Print Vial'; ?></th>
 <th class="text-center"><?php echo $this->lang->line('generate_bill') ?: 'Generate Bill'; ?></th>
 <th class="text-center"><?php echo $this->lang->line('show_patient_history') ?: 'Show Patient History'; ?></th>
+<th class="text-center"><?php echo $this->lang->line('can_collect_charge') ?: 'Collect Charge'; ?></th>
 <!-- <th class="text-center"><?php echo $this->lang->line('can_generate_pharmacy_bill') ?: 'Generate Pharmacy Bill'; ?></th> -->
 <th class="text-end text-nowrap"><?php echo $this->lang->line('action'); ?></th>
                 </tr>
@@ -163,6 +164,9 @@ defined('BASEPATH') or exit('No direct script access allowed');
                                     </td>
                                     <td class="text-center">
                                         <?php echo !empty($l->show_patient_history) ? '<span class="badge bg-success-subtle text-success-emphasis"><i class="fa fa-check"></i></span>' : '<span class="text-muted">—</span>'; ?>
+                                    </td>
+                                    <td class="text-center">
+                                        <?php echo !empty($l->can_collect_charge) ? '<span class="badge bg-success-subtle text-success-emphasis"><i class="fa fa-check"></i></span>' : '<span class="text-muted">—</span>'; ?>
                                     </td>
                                     <!-- <td class="text-center">
                                         <?php echo !empty($l->can_generate_pharmacy_bill) ? '<span class="badge bg-success-subtle text-success-emphasis"><i class="fa fa-check"></i></span>' : '<span class="text-muted">—</span>'; ?>
@@ -332,6 +336,10 @@ defined('BASEPATH') or exit('No direct script access allowed');
                                  <input class="form-check-input" type="checkbox" name="show_patient_history" id="pf_show_patient_history" value="1">
                                  <label class="form-check-label" for="pf_show_patient_history"><?php echo $this->lang->line('show_patient_history') ?: 'Show Patient History'; ?></label>
                              </div>
+                             <div class="form-check mb-2">
+                                 <input class="form-check-input" type="checkbox" name="can_collect_charge" id="pf_can_collect_charge" value="1">
+                                 <label class="form-check-label" for="pf_can_collect_charge"><?php echo $this->lang->line('can_collect_charge') ?: 'Collect Charge'; ?></label>
+                             </div>
                              <!-- <div class="form-check mb-2">
                                 <input class="form-check-input" type="checkbox" name="can_generate_pharmacy_bill" id="pf_can_generate_pharmacy_bill" value="1">
                                 <label class="form-check-label" for="pf_can_generate_pharmacy_bill"><?php echo $this->lang->line('can_generate_pharmacy_bill') ?: 'Generate Pharmacy Bill'; ?></label>
@@ -386,6 +394,7 @@ defined('BASEPATH') or exit('No direct script access allowed');
                 if (parseInt(row.print_vial) === 1) { $('#pf_print_vial').prop('checked', true); }
                 if (parseInt(row.generate_bill) === 1) { $('#pf_generate_bill').prop('checked', true); }
                 if (parseInt(row.show_patient_history) === 1) { $('#pf_show_patient_history').prop('checked', true); }
+                if (parseInt(row.can_collect_charge) === 1) { $('#pf_can_collect_charge').prop('checked', true); }
                 // if (parseInt(row.can_generate_pharmacy_bill) === 1) { $('#pf_can_generate_pharmacy_bill').prop('checked', true); }
             }
         }
