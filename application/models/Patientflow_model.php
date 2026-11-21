@@ -5568,9 +5568,14 @@ class Patientflow_model extends CI_Model
         if (!$med->pharmacy_id) {
             return array('status' => false, 'message' => 'Medicine not linked to pharmacy.');
         }
-        $stock_deduction_ml = (float) ($med->stock_deduction_ml ?: 0);
+        // $stock_deduction_ml = (float) ($med->stock_deduction_ml ?: 0);
+        // if ($stock_deduction_ml <= 0) {
+        //     return array('status' => false, 'message' => 'No stock deduction quantity configured.');
+        // }
+        
+        $stock_deduction_ml = (float) ($med->stock_deduction_ml ?: 1);
         if ($stock_deduction_ml <= 0) {
-            return array('status' => false, 'message' => 'No stock deduction quantity configured.');
+            $stock_deduction_ml = 1;
         }
 
         $pharmacy_id = (int) $med->pharmacy_id;
