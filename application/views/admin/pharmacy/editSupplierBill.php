@@ -76,20 +76,25 @@ $genderList = $this->customlib->getGender();
                             type: "POST",
                             data: {medicine_category_id: id},
                             dataType: 'json',
-                            success: function (res) {
-                                $.each(res, function (i, obj)
-                                {
-                                    var sel = "";
-                                    if (obj.id == selectid) {
-                                        sel = "selected";
-                                    }
-                                    div_data += "<option " + sel + " value=" + obj.id + " >" + obj.medicine_name + "</option>";
-                                });
-                                $("#medicine_edit_name" + rowid).html("<option value=''><?php echo $this->lang->line('select') ?></option>");
+                        success: function (res) {
+                            $.each(res, function (i, obj)
+                            {
+                                var sel = "";
+                                if (obj.id == selectid) {
+                                    sel = "selected";
+                                }
+                                div_data += "<option " + sel + " value=" + obj.id + " >" + obj.medicine_name + "</option>";
+                            });
+                            $("#medicine_edit_name" + rowid).html("<option value=''><?php echo $this->lang->line('select') ?></option>");
 
-                                $('#medicine_edit_name' + rowid).append(div_data);
-                                $(".select2").select2().select2('val', res.medicine_name);
+                            $('#medicine_edit_name' + rowid).append(div_data);
+                            var $sel = $('#medicine_edit_name' + rowid);
+                            if ($sel.hasClass('select2-hidden-accessible')) {
+                                $sel.select2('destroy');
                             }
+                            $sel.select2();
+                        }
+
 
                         });
                     }
@@ -153,9 +158,6 @@ $genderList = $this->customlib->getGender();
                                 </thead>
                                 <tbody>
                                 <?php $i = 0; foreach ($detail as $key => $value) { ?>
-                                <script type="text/javascript">
-                                    getmedicine_edit_name('<?php echo $value['medicine_category_id'] ?>', '<?php echo $i ?>', '<?php echo $value['medicine_id'] ?>')
-                                </script>
                                 <tr id="row<?php echo $i ?>" class="white-space-nowrap">
                                     <td>
                                         <input name="id" type="hidden" value="<?php echo $value['id']; ?>">
@@ -169,7 +171,10 @@ $genderList = $this->customlib->getGender();
                                     </td>
                                     <td>
                                         <select class="form-control select2" id="medicine_edit_name<?php echo $i ?>" name='medicine_name[]' onchange="geteditbatchnolist(this.value, '<?php echo $i ?>')">
-                                            <option value="<?php echo set_value('medicine_name'); ?>"><?php echo $this->lang->line('select'); ?></option>
+                                            <option value=""><?php echo $this->lang->line('select'); ?></option>
+                                            <?php foreach (($medicinesByCategory[$value['medicine_category_id']] ?? []) as $m) { ?>
+                                            <option value="<?php echo $m['id']; ?>" <?php if ($value['medicine_id'] == $m['id']) { echo "selected"; } ?>><?php echo html_escape($m['medicine_name']); ?></option>
+                                            <?php } ?>
                                         </select>
                                         <span class="text-danger"><?php echo form_error('medicine_name[]'); ?></span>
                                     </td>

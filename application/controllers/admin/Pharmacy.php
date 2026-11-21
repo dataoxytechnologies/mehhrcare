@@ -2048,6 +2048,16 @@ class Pharmacy extends Admin_Controller
         }
         $medicineCategory             = $this->medicine_category_model->getMedicineCategory();
         $data["medicineCategory"]     = $medicineCategory;
+        // Load all medicines once, grouped by category — used to render the
+        // medicine_name <option>s server-side so the edit modal does NOT fire
+        // one get_medicine_name AJAX request per row on load.
+        $allMedicines                 = $this->pharmacy_model->get_medicine_name('');
+        $medicinesByCategory          = [];
+        foreach ($allMedicines as $m) {
+            $medicinesByCategory[$m['medicine_category_id']][] = $m;
+        }
+        $data['medicinesByCategory']  = $medicinesByCategory;
+
         $medicine_category_id         = $this->input->post("medicine_category_id");
         $data['medicine_category_id'] = $this->pharmacy_model->get_medicine_name($medicine_category_id);
         $data['medicine_category_id'] = $medicine_category_id;
