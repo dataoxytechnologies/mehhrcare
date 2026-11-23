@@ -220,6 +220,20 @@ $currency_symbol = $this->customlib->getHospitalCurrencyFormat();
                 </div>
                 <div class="card-body">
 
+                    <?php if ($this->session->flashdata('error_msg')): ?>
+                    <div class="alert alert-danger alert-dismissible fade show mb-3">
+                        <?php echo $this->session->flashdata('error_msg'); ?>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                    <?php endif; ?>
+
+                    <?php if ($this->session->flashdata('info_msg')): ?>
+                    <div class="alert alert-info alert-dismissible fade show mb-3">
+                        <?php echo $this->session->flashdata('info_msg'); ?>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                    <?php endif; ?>
+
                     <!-- Patient Information -->
                     <div class="patient-block">
                         <?php
@@ -337,6 +351,7 @@ $currency_symbol = $this->customlib->getHospitalCurrencyFormat();
     </div>
 </div>
 
+<script src="<?php echo base_url('backend/custom/jquery.min.js'); ?>"></script>
 <script src="<?php echo base_url('backend/dist/bootstrap5/js/bootstrap.bundle.min.js'); ?>"></script>
 <script>
 $(document).ready(function() {

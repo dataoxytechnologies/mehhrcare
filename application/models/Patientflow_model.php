@@ -110,6 +110,12 @@ class Patientflow_model extends CI_Model
             if (!$this->db->field_exists('charge_collected_by', 'patient_flow_visits')) {
                 $this->db->query("ALTER TABLE `patient_flow_visits` ADD COLUMN `charge_collected_by` INT(11) NULL DEFAULT NULL COMMENT '-> staff.id who collected the charge' AFTER `charge_collected_at`");
             }
+            // Razorpay QR code id for UPI QR payments (programme bill / charge).
+            // Populated by generate_qr_code() / verify_qr_payment(); used to poll
+            // Razorpay /v1/qr_codes/:id for payment status.
+            if (!$this->db->field_exists('razorpay_qr_code_id', 'patient_flow_visits')) {
+                $this->db->query("ALTER TABLE `patient_flow_visits` ADD COLUMN `razorpay_qr_code_id` VARCHAR(100) NULL DEFAULT NULL COMMENT 'Razorpay QR code id (upi_qr) for payment verification' AFTER `charge_collected_by`");
+            }
             // Programme status: enroll | declined | deferred.
             // Only a staff whose level has can_change_programme_status may change it.
             if (!$this->db->field_exists('programme_status', 'patient_flow_visits')) {
@@ -5980,7 +5986,9 @@ class Patientflow_model extends CI_Model
             return array();
         }
 
-        $this->db->select('pp.id, pp.medicine_id, pp.series, pp.variant, mp.code, mp.medicine_identity, ph.medicine_name as pharmacy_name');
+        $this->db->select('pp.id, pp.medicine_id, pp.series, pp.variant, mp.code, mp.medicine_identity, ph.medicine_name as pharmacy_name,
+                           mp.patient_dose, mp.route_method, mp.timing, mp.frequency, mp.duration_text,
+                           mp.hindi_patient_dose, mp.hindi_route_method, mp.hindi_timing, mp.hindi_frequency, mp.hindi_duration_text');
         $this->db->from('patient_flow_prescription pp');
         $this->db->join('medicine_master mp', 'mp.id = pp.medicine_id', 'left');
         $this->db->join('pharmacy ph', 'ph.id = mp.pharmacy_id', 'left');

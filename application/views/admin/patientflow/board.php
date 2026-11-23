@@ -681,9 +681,16 @@ if (!function_exists('pf_ct_age_label')) {
                                         class="btn btn-sm btn-outline-success w-100 mb-1" data-bs-toggle="tooltip"
                                         title="<?php echo $this->lang->line('print_vial_label') ?: 'Print Vial Label'; ?>">
                                          <i class="fas fa-vial"></i> &nbsp;<?php echo $this->lang->line('print_vial_label') ?: 'Print Vial Label'; ?>
-                                     </a>
-                                     <?php } ?>
-                                     <?php if (!empty($v->level_generate_bill) && $pf_owned && $pf_programme === 'enroll') { ?>
+                                      </a>
+                                      <?php } ?>
+                                      <?php if (!empty($v->level_print_vial)) { ?>
+                                      <a href="<?php echo site_url('admin/patientflow/print_medicine_instructions/' . $v->id); ?>" target="_blank"
+                                         class="btn btn-sm btn-outline-info w-100 mb-1" data-bs-toggle="tooltip"
+                                         title="Print Medicine Instructions">
+                                          <i class="fas fa-print"></i> &nbsp;Print Instructions
+                                      </a>
+                                      <?php } ?>
+                                      <?php if (!empty($v->level_generate_bill) && $pf_owned && $pf_programme === 'enroll') { ?>
                                      <button type="button" class="btn btn-primary btn-sm generatebill w-100 mb-1"
                                              data-visit-id="<?php echo (int) $v->id; ?>"
                                              data-patient-id="<?php echo (int) $v->patient_id; ?>"

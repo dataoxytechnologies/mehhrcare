@@ -409,11 +409,11 @@
     </button>
     <?php }} ?>
 
-    <?php if ($this->rbac->hasPrivilege('bed_status', 'can_view')) { ?>
+    <!-- <?php if ($this->rbac->hasPrivilege('bed_status', 'can_view')) { ?>
     <button class="tb-btn" id="beddata" onclick="getbedstatus()" title="<?php echo $this->lang->line('bed_status'); ?>">
       <i class="fas fa-bed"></i>
     </button>
-    <?php } ?>
+    <?php } ?> -->
 
     <?php if ($this->module_lib->hasActive('chat') && $this->rbac->hasPrivilege('chat', 'can_view')) { ?>
     <a class="tb-btn" href="<?php echo site_url('admin/chat'); ?>" title="<?php echo $this->lang->line('chat'); ?>">

@@ -218,7 +218,7 @@
         </table>
 
         <?php if (!empty($prescriptions)): ?>
-            <table width="100%" height="100%" cellpadding="3" cellspacing="0" border="1">
+            <!-- <table width="100%" height="100%" cellpadding="3" cellspacing="0" border="1">
                 <thead>
                     <tr>
                         <th colspan="2">Medicine &amp; Dosage</th>
@@ -255,7 +255,7 @@
                         </tr>
                     <?php endforeach; ?>
                 </tbody>
-            </table>
+            </table> -->
         <?php endif; ?>
 
         <table width="100%" height="100%" cellpadding="3" cellspacing="0" border="1">

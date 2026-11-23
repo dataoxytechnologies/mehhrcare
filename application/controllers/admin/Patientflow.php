@@ -2003,10 +2003,9 @@ class Patientflow extends Admin_Controller
     }
 
     /**
-     * Redirect to the patient flow payment page for a visit.
-     * Replaces the former QR code page: clicking "Pay" on the board now goes
-     * straight to admin/patientflow/pay?ref=billing_reference where the
-     * Razorpay checkout (or manual payment form) is rendered.
+     * Generate a Razorpay UPI QR code for the visit's programme bill and show
+     * a scannable payment page. Replaces the former redirect to pay().
+     * Keeps Razorpay Checkout as a fallback button for patients who cannot scan.
      * Gated to level 2 (billing) management: superadmin, or a staff whose
      * role owns the visit's current level when that level is level 2.
      */
@@ -2028,13 +2027,12 @@ class Patientflow extends Admin_Controller
             redirect('admin/patientflow');
         }
 
-        // Duplicate payment prevention: do not open the pay page for an
+        // Duplicate payment prevention: do not open a QR page for an
         // already-paid visit.
         if (!empty($visit->billing_status) && $visit->billing_status === 'paid') {
             $this->session->set_flashdata('info_msg', 'This visit has already been paid.');
             redirect('admin/patientflow');
         }
-        
 
         $paymentRef = !empty($visit->billing_reference) ? $visit->billing_reference : $visit->visit_no;
         if (empty($paymentRef)) {
@@ -2042,7 +2040,160 @@ class Patientflow extends Admin_Controller
             redirect('admin/patientflow');
         }
 
-        redirect('admin/patientflow/pay?ref=' . urlencode($paymentRef));
+        // If Razorpay is not the active gateway, fall back to the existing
+        // pay page (Razorpay Checkout or manual form).
+        $active_method = $this->paymentsetting_model->getActiveMethod();
+        if (empty($active_method) || $active_method->payment_type !== 'razorpay') {
+            $this->session->set_flashdata('info_msg', 'Razorpay is not the active payment gateway.');
+            redirect('admin/patientflow/pay?ref=' . urlencode($paymentRef));
+        }
+
+        $total_amount = $this->patientflow_model->getProgrammeBillAmount((int) $visit->id);
+        if ($total_amount <= 0) {
+            $this->session->set_flashdata('error_msg', 'No amount due for this visit.');
+            redirect('admin/patientflow');
+        }
+
+        $key_id = !empty($active_method->api_publishable_key) ? $active_method->api_publishable_key : '';
+        $key_secret = !empty($active_method->api_secret_key) ? $active_method->api_secret_key : '';
+        $this->load->library('razorpay_qr_lib', array('key_id' => $key_id, 'key_secret' => $key_secret));
+
+        $customer = array(
+            'name'   => !empty($visit->patient_name) ? $visit->patient_name : 'Patient',
+            'contact' => !empty($visit->mobileno) ? $visit->mobileno : '',
+            'email'   => !empty($visit->email) ? $visit->email : '',
+        );
+        $notes = array(
+            'visit_id'          => (int) $visit->id,
+            'visit_no'          => $visit->visit_no,
+            'billing_reference' => $paymentRef,
+            'patient_name'      => $visit->patient_name,
+        );
+
+        $qr_name = 'Patient Flow — ' . $paymentRef;
+        $result = $this->razorpay_qr_lib->create_qr(array(
+            'amount'       => $total_amount,
+            'name'         => $qr_name,
+            'description'  => 'Programme bill payment — ' . $qr_name,
+            'customer'     => $customer,
+            'notes'        => $notes,
+        ));
+
+        if (!$result['success']) {
+            $this->session->set_flashdata('error_msg', 'Failed to generate QR code: ' . $result['error']);
+            redirect('admin/patientflow/pay?ref=' . urlencode($paymentRef));
+        }
+
+        // Store the Razorpay QR code id for later verification.
+        $this->patientflow_model->update_visit((int) $visit->id, array(
+            'razorpay_qr_code_id' => $result['data']['id'],
+        ));
+
+        $data['visit']               = $visit;
+        $data['visit_id']            = (int) $visit->id;
+        $data['patient_name']        = $visit->patient_name;
+        $data['visit_no']            = $visit->visit_no;
+        $data['billing_reference']   = $paymentRef;
+        $data['total_amount']        = $total_amount;
+        $data['currency_symbol']     = $this->customlib->getHospitalCurrencyFormat();
+        $data['qr_code_id']          = $result['data']['id'];
+        $data['qr_code_image']       = $result['data']['qr_code'];
+        $data['qr_short_url']        = $result['data']['short_url'];
+        $data['fallback_pay_url']    = base_url('admin/patientflow/pay?ref=' . urlencode($paymentRef));
+        $data['verify_url']          = base_url('admin/patientflow/verify_qr_payment/' . (int) $visit->id);
+        $data['setting']             = $this->setting_model->get();
+
+        $this->load->view('layout/header', $data);
+        $this->load->view('admin/patientflow/qr_payment', $data);
+        $this->load->view('layout/footer', $data);
+    }
+
+    /**
+     * AJAX: Verify Razorpay QR payment status for a visit.
+     * Polls GET /v1/qr_codes/:id and marks the visit paid when status is paid.
+     * Supports ?type=charge to mark the charge collected instead of the bill.
+     */
+    public function verify_qr_payment($visit_id = 0)
+    {
+        if (!$this->rbac->hasPrivilege('patient_flow', 'can_view')) {
+            echo json_encode(array('status' => false, 'message' => 'Permission denied'));
+            return;
+        }
+
+        $visit_id = intval($visit_id);
+        if (!$visit_id) {
+            echo json_encode(array('status' => false, 'message' => 'Invalid visit.'));
+            return;
+        }
+
+        $payment_type = strtolower(trim((string) $this->input->get('type', true)));
+        $is_charge  = ($payment_type === 'charge');
+
+        $visit = $this->patientflow_model->get_visit($visit_id);
+        if (!$visit) {
+            echo json_encode(array('status' => false, 'message' => 'Visit not found.'));
+            return;
+        }
+
+        $qr_code_id = !empty($visit->razorpay_qr_code_id) ? $visit->razorpay_qr_code_id : '';
+        if (empty($qr_code_id)) {
+            echo json_encode(array('status' => false, 'message' => 'No QR code found for this visit.'));
+            return;
+        }
+
+        // Already paid — nothing to do.
+        if ($is_charge) {
+            if ((string) $visit->charge_status === 'paid') {
+                echo json_encode(array('status' => true, 'paid' => true, 'message' => 'Charge already collected.'));
+                return;
+            }
+        } else {
+            if (!empty($visit->billing_status) && $visit->billing_status === 'paid') {
+                echo json_encode(array('status' => true, 'paid' => true, 'message' => 'Already paid.'));
+                return;
+            }
+        }
+
+        $active_method = $this->paymentsetting_model->getActiveMethod();
+        $key_id = !empty($active_method->api_publishable_key) ? $active_method->api_publishable_key : '';
+        $key_secret = !empty($active_method->api_secret_key) ? $active_method->api_secret_key : '';
+        $this->load->library('razorpay_qr_lib', array('key_id' => $key_id, 'key_secret' => $key_secret));
+
+        $result = $this->razorpay_qr_lib->fetch_qr($qr_code_id);
+        if (!$result['success']) {
+            echo json_encode(array('status' => false, 'paid' => false, 'message' => $result['error']));
+            return;
+        }
+
+        $data = $result['data'];
+        $status = !empty($data['status']) ? (string) $data['status'] : '';
+        $paid = ($status === 'paid');
+
+        if ($paid) {
+            // Mark the visit as paid (duplicate-safe).
+            $current = $this->patientflow_model->get_visit($visit_id);
+            if ($current) {
+                if ($is_charge && (string) $current->charge_status !== 'paid') {
+                    $this->patientflow_model->update_visit($visit_id, array(
+                        'charge_status'          => 'paid',
+                        'charge_payment_mode'    => 'Razorpay',
+                        'charge_collected_at'    => date('Y-m-d H:i:s'),
+                        'charge_collected_by'    => $this->customlib->getStaffID(),
+                    ));
+                } elseif (!$is_charge && (empty($current->billing_status) || $current->billing_status !== 'paid')) {
+                    $this->patientflow_model->update_visit($visit_id, array(
+                        'billing_status'              => 'paid',
+                        'payment_mode'                => 'Razorpay',
+                        'cash_received'               => 1,
+                        'billing_status_updated_at'   => date('Y-m-d H:i:s'),
+                        'billing_status_updated_by'   => $this->customlib->getStaffID(),
+                    ));
+                }
+            }
+            echo json_encode(array('status' => true, 'paid' => true, 'message' => 'Payment verified.'));
+        } else {
+            echo json_encode(array('status' => true, 'paid' => false, 'message' => 'Payment not received yet (' . $status . ').'));
+        }
     }
 
     /**
@@ -2468,7 +2619,8 @@ class Patientflow extends Admin_Controller
         // If Razorpay is the active payment gateway, store the charge payment
         // session and redirect to Razorpay checkout.
         $active_method = $this->paymentsetting_model->getActiveMethod();
-        if (!empty($active_method) && $active_method->payment_type === 'razorpay') {
+        $qr_failed     = $this->input->get('qr_failed', true);
+        if (!empty($active_method) && $active_method->payment_type === 'razorpay' && empty($qr_failed)) {
             $charge_type   = !empty($active_method->charge_type) ? $active_method->charge_type : '';
             $charge_value  = !empty($active_method->charge_value) ? (float) $active_method->charge_value : 0;
             $gateway_processing_charge = 0;
@@ -2487,6 +2639,7 @@ class Patientflow extends Admin_Controller
                 'key_id'                     => !empty($active_method->api_publishable_key) ? $active_method->api_publishable_key : '',
                 'key_secret'                 => !empty($active_method->api_secret_key) ? $active_method->api_secret_key : '',
             );
+            // echo '<pre>'; print_r($charge_payment_data); echo '</pre>'; die();
             $this->session->set_userdata('charge_payment_data', $charge_payment_data);
             redirect(base_url('admin/patientflow/charge_gateway'));
         }
@@ -2533,28 +2686,69 @@ class Patientflow extends Admin_Controller
         }
 
         $active_method = $this->paymentsetting_model->getActiveMethod();
-        $setting       = !empty($this->setting_model->get()[0]) ? $this->setting_model->get()[0] : array();
+        if (empty($active_method) || $active_method->payment_type !== 'razorpay') {
+            $this->session->set_flashdata('info_msg', 'Razorpay is not the active payment gateway.');
+            redirect('admin/patientflow');
+            return;
+        }
 
-        $data['key_id']                  = !empty($active_method->api_publishable_key) ? $active_method->api_publishable_key : '';
-        $data['merchant_order_id']       = 'charge_' . time() . '01';
-        $data['txnid']                   = 'charge_' . time() . '02';
-        $data['name']                    = !empty($visit->patient_name) ? $visit->patient_name : 'Patient';
-        $data['title']                   = 'Online Charge Collection through Razorpay';
-        $data['case_reference_id']       = $charge_payment_data['case_reference_id'] ?? 0;
-        $data['amount']                  = $charge_amount;
-        $data['currency']                = !empty($setting['currency']) ? $setting['currency'] : 'INR';
-        $data['hospital_name']           = !empty($setting['name']) ? $setting['name'] : '';
-        $data['image']                   = !empty($setting['image']) ? $setting['image'] : '';
-        $data['return_url']              = base_url('admin/patientflow/charge_gateway_callback');
-        $data['gateway_processing_charge'] = $charge_payment_data['gateway_processing_charge'];
-        $total                           = ($charge_amount + $charge_payment_data['gateway_processing_charge']);
-        $data['total']                   = $total * 100;
-        $data['visit']                   = $visit;
-        $data['visit_id']                = $visit_id;
-        $data['payment_ref']             = $visit->visit_no;
+        $key_id   = !empty($active_method->api_publishable_key) ? $active_method->api_publishable_key : '';
+        $key_secret = !empty($active_method->api_secret_key) ? $active_method->api_secret_key : '';
+        $this->load->library('razorpay_qr_lib', array('key_id' => $key_id, 'key_secret' => $key_secret));
+
+        $customer = array(
+            'name'    => !empty($visit->patient_name) ? $visit->patient_name : 'Patient',
+            'contact' => !empty($visit->mobileno) ? $visit->mobileno : '',
+            'email'   => !empty($visit->email) ? $visit->email : '',
+        );
+        $notes = array(
+            'visit_id'    => (int) $visit->id,
+            'visit_no'    => $visit->visit_no,
+            'patient_name'=> $visit->patient_name,
+            'payment_for' => 'patientflow_charge',
+        );
+
+        $qr_name = 'Charge — ' . $visit->visit_no;
+        $result = $this->razorpay_qr_lib->create_qr(array(
+            'amount'       => $charge_amount,
+            'name'         => $qr_name,
+            'description'  => 'Charge collection — ' . $qr_name,
+            'customer'     => $customer,
+            'notes'        => $notes,
+        ));
+
+        // echo '<pre>'; print_r($result); echo '</pre>'; die();
+        
+        if (!$result['success']) {
+            $this->session->set_flashdata('error_msg', 'Failed to generate QR code: ' . $result['error']);
+            redirect('admin/patientflow/charge_pay/' . $visit_id . '?qr_failed=1');
+            return;
+        }
+
+        // Store the Razorpay QR code id for later verification.
+        $this->patientflow_model->update_visit((int) $visit->id, array(
+            'razorpay_qr_code_id' => $result['data']['id'],
+        ));
+
+        $setting = !empty($this->setting_model->get()[0]) ? $this->setting_model->get()[0] : array();
+        $currency_symbol = !empty($setting['currency_symbol']) ? $setting['currency_symbol'] : $this->customlib->getHospitalCurrencyFormat();
+
+        $data['visit']               = $visit;
+        $data['visit_id']            = (int) $visit->id;
+        $data['patient_name']        = $visit->patient_name;
+        $data['visit_no']            = $visit->visit_no;
+        $data['total_amount']        = $charge_amount;
+        $data['currency_symbol']     = $currency_symbol;
+        $data['qr_code_id']          = $result['data']['id'];
+        $data['qr_code_image']       = $result['data']['qr_code'];
+        $data['qr_short_url']        = $result['data']['short_url'];
+        $data['fallback_pay_url']    = base_url('admin/patientflow/charge_pay/' . $visit_id);
+        $data['verify_url']          = base_url('admin/patientflow/verify_qr_payment/' . (int) $visit->id . '?type=charge');
+        $data['payment_type']        = 'charge';
+        $data['setting']             = $setting;
 
         $this->load->view('layout/header', $data);
-        $this->load->view('admin/patientflow/charge_razorpay', $data);
+        $this->load->view('admin/patientflow/qr_payment', $data);
         $this->load->view('layout/footer', $data);
     }
 
@@ -3912,6 +4106,45 @@ foreach ($slots as $pfx => $label) {
         );
 
         $this->load->view('admin/patientflow/print_vial_labels', $data);
+    }
+
+    /**
+     * Print medicine instructions for a visit — opens a print-friendly page
+     * listing all prescribed medicines with dose, route, timing, frequency
+     * and duration instructions (English + Hindi where available).
+     */
+    public function print_medicine_instructions($visit_id = 0)
+    {
+        if (!$this->rbac->hasPrivilege('patient_flow', 'can_view')) {
+            access_denied();
+            return;
+        }
+
+        $visit_id = intval($visit_id);
+        if ($visit_id <= 0) {
+            redirect('admin/patientflow');
+        }
+
+        $visit = $this->patientflow_model->get_visit($visit_id);
+        if (!$visit) {
+            $this->session->set_flashdata('error_msg', 'Visit not found.');
+            redirect('admin/patientflow');
+            return;
+        }
+
+        $this->load->model('setting_model');
+
+        $medicines = $this->patientflow_model->get_visit_medicines($visit_id);
+
+        $setting       = !empty($this->setting_model->get()[0]) ? $this->setting_model->get()[0] : array();
+
+        $data = array(
+            'visit'     => $visit,
+            'medicines' => $medicines,
+            'setting'   => $setting,
+        );
+
+        $this->load->view('admin/patientflow/print_medicine_instructions', $data);
     }
 
     public function clinical_approve()
