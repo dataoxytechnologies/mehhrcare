@@ -1,0 +1,60 @@
+
+{
+  "info": {
+    "name": "Razorpay - Create UPI QR Code",
+    "description": "Create a Razorpay UPI QR Code using the Payments QR Codes API.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Create UPI QR Code",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "auth": {
+          "type": "basic",
+          "basic": [
+            {
+              "key": "username",
+              "value": "YOUR_RAZORPAY_KEY_ID",
+              "type": "string"
+            },
+            {
+              "key": "password",
+              "value": "YOUR_RAZORPAY_KEY_SECRET",
+              "type": "string"
+            }
+          ]
+        },
+        "url": {
+          "raw": "https://api.razorpay.com/v1/payments/qr_codes",
+          "protocol": "https",
+          "host": [
+            "api",
+            "razorpay",
+            "com"
+          ],
+          "path": [
+            "v1",
+            "payments",
+            "qr_codes"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"type\": \"upi_qr\",\n  \"name\": \"Store Front Display\",\n  \"usage\": \"single_use\",\n  \"fixed_amount\": true,\n  \"payment_amount\": 300,\n  \"description\": \"For Store 1\",\n  \"notes\": {\n    \"purpose\": \"Test UPI QR Code notes\"\n  }\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    }
+  ]
+}

@@ -2089,6 +2089,19 @@ class Patientflow extends Admin_Controller
             'razorpay_qr_code_id' => $result['data']['id'],
         ));
 
+        // Return JSON for AJAX (modal) requests; render full page otherwise.
+        if ($this->input->is_ajax_request()) {
+            echo json_encode(array(
+                'status'        => true,
+                'visit_id'      => (int) $visit->id,
+                'qr_code_image' => $result['data']['qr_code'],
+                'qr_short_url'  => !empty($result['data']['short_url']) ? $result['data']['short_url'] : '',
+                'total_amount'  => $total_amount,
+                'currency'      => $this->customlib->getHospitalCurrencyFormat(),
+            ));
+            return;
+        }
+
         $data['visit']               = $visit;
         $data['visit_id']            = (int) $visit->id;
         $data['patient_name']        = $visit->patient_name;

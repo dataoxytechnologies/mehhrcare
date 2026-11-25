@@ -54,37 +54,8 @@ $currency_symbol = !empty($currency_symbol) ? $currency_symbol : $this->customli
                     </div>
 
                     <div id="qr-display" class="mb-3">
-                        <?php if (!empty($qr_code_image)): ?>
-                        <img id="qr-image" src="<?php echo htmlspecialchars($qr_code_image); ?>" alt="QR Code"
-                             style="max-width: 260px; max-height: 260px; border: 1px solid #ddd; padding: 8px; background: #fff;"
-                             onerror="this.style.display='none'; document.getElementById('qr-fallback').style.display='block';">
-                        <?php endif; ?>
-                        <div id="qr-fallback" style="display:none;">
-                            <div class="alert alert-info">
-                                <i class="fa fa-info-circle me-1"></i>
-                                <?php echo $this->lang->line('qr_image_unavailable') ?: 'QR image unavailable.'; ?> <br>
-                                <a href="<?php echo htmlspecialchars($qr_short_url); ?>" target="_blank"><?php echo $this->lang->line('open_qr_url') ?: 'Open QR link'; ?></a>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div id="check-status" class="mb-3 text-muted small"></div>
-
-                    <div class="sh-pay-actions">
-                        <button type="button" id="btn-check-payment"
-                                class="btn btn-primary"
-                                data-visit-id="<?php echo (int) $visit_id; ?>"
-                                data-verify-url="<?php echo htmlspecialchars($verify_url); ?>"
-                                data-interval="5000"
-                                data-max-attempts="12">
-                            <i class="fa fa-search me-1"></i><?php echo $this->lang->line('check_payment') ?: 'Check Payment'; ?>
-                        </button>
-                        <a href="<?php echo htmlspecialchars($fallback_pay_url); ?>" target="_blank"
-                           class="btn btn-outline-secondary">
-                            <i class="fa fa-credit-card me-1"></i><?php echo $this->lang->line('pay_with_razorpay') ?: 'Pay with Razorpay Checkout'; ?>
-                        </a>
-                        <button type="button" onclick="window.history.go(-1); return false;" class="btn btn-light">
-                            <i class="fa fa-chevron-left me-1"></i><?php echo $this->lang->line('back'); ?>
+                        <button type="button" class="btn btn-outline-primary w-100 mb-2" data-bs-toggle="modal" data-bs-target="#pfQrCodeModal">
+                            <i class="fa fa-qrcode me-1"></i><?php echo $this->lang->line('view_qr_code') ?: 'View QR Code'; ?>
                         </button>
                     </div>
 
@@ -95,17 +66,63 @@ $currency_symbol = !empty($currency_symbol) ? $currency_symbol : $this->customli
     </div>
 </div>
 
+<!-- QR Code Modal -->
+<div class="modal fade" id="pfQrCodeModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white" style="display: block; text-align: center;">
+                
+                <div id="check-status-modal" class="mb-3 text-muted small"></div>
+
+                <div class="sh-pay-actions mt-3" style="width: 100%;">
+                    <button type="button" id="btn-check-payment-modal"
+                            class="btn btn-primary w-100 mb-2"
+                            data-visit-id="<?php echo (int) $visit_id; ?>"
+                            data-verify-url="<?php echo htmlspecialchars($verify_url); ?>"
+                            data-interval="5000"
+                            data-max-attempts="12">
+                        <i class="fa fa-search me-1"></i><?php echo $this->lang->line('check_payment') ?: 'Check Payment'; ?>
+                    </button>
+                    <a href="<?php echo htmlspecialchars($fallback_pay_url); ?>" target="_blank"
+                       class="btn btn-outline-secondary w-100 mb-2">
+                        <i class="fa fa-credit-card me-1"></i><?php echo $this->lang->line('pay_with_razorpay') ?: 'Pay with Razorpay Checkout'; ?>
+                    </a>
+                    <button type="button" class="btn btn-light w-100 mb-2" data-bs-dismiss="modal">
+                        <i class="fa fa-chevron-left me-1"></i><?php echo $this->lang->line('back'); ?>
+                    </button>
+                </div>
+            </div>
+            <div class="modal-body text-center p-4">
+                <?php if (!empty($qr_code_image)): ?>
+                <img src="<?php echo htmlspecialchars($qr_code_image); ?>" alt="QR Code"
+                     style="max-width: 300px; max-height: 600px; border: 1px solid #ddd; padding: 8px; background: #fff;"
+                     onerror="this.style.display='none'; document.getElementById('qr-fallback-modal').style.display='block';">
+                <div id="qr-fallback-modal" style="display:none; margin-top: 1rem;">
+                    <div class="alert alert-info">
+                        <i class="fa fa-info-circle me-1"></i>
+                        <?php echo $this->lang->line('qr_image_unavailable') ?: 'QR image unavailable.'; ?> <br>
+                        <a href="<?php echo htmlspecialchars($qr_short_url); ?>" target="_blank"><?php echo $this->lang->line('open_qr_url') ?: 'Open QR link'; ?></a>
+                    </div>
+                </div>
+                <?php else: ?>
+                <div class="text-muted py-4">No QR code available.</div>
+                <?php endif; ?>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
     var SITEURL = "<?php echo base_url() ?>";
     $(function () {
-        var $btn = $('#btn-check-payment');
+        var $btn = $('#btn-check-payment-modal');
         var visitId = $btn.data('visit-id');
         var verifyUrl = $btn.data('verify-url');
         var interval = parseInt($btn.data('interval')) || 5000;
         var maxAttempts = parseInt($btn.data('max-attempts')) || 12;
         var attempts = 0;
         var timer = null;
-        var $status = $('#check-status');
+        var $status = $('#check-status-modal');
 
         function startPolling() {
             $btn.prop('disabled', true).find('i').addClass('fa-spin');

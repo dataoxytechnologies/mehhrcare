@@ -702,12 +702,12 @@ if (!function_exists('pf_ct_age_label')) {
                                      <?php } ?>
                                        <?php // if ($pf_can_manage_billing && !empty($v->has_programme_bill)) { ?>
                                         <?php if (!empty($v->has_programme_bill) && (empty($v->billing_status) || $v->billing_status !== 'paid')) { ?>
-                                        <a href="<?php echo site_url('admin/patientflow/generate_qr_code/' . $v->id); ?>" target="_blank"
-                                                class="btn btn-sm btn-outline-info w-100 mb-1"
+                                        <button type="button" class="btn btn-sm btn-outline-info w-100 mb-1 pf-open-qr-modal"
+                                                data-visit-id="<?php echo (int) $v->id; ?>"
                                                 data-bs-toggle="tooltip"
                                                 title="<?php echo $this->lang->line('pay') ?: 'Pay'; ?>">
-                                            <i class="fa fa-credit-card"></i> &nbsp;<?php echo $this->lang->line('pay') ?: 'Pay'; ?>
-                                        </a>
+                                            <i class="fa fa-qrcode"></i> &nbsp;<?php echo $this->lang->line('pay') ?: 'Pay'; ?>
+                                        </button>
                                         <?php } ?>
                                         <?php if ($pf_owned && !empty($v->has_programme_bill) && $v->billing_status === 'paid' && $v->status !== 'completed' && !empty($pf_final_level) && (int) $v->current_level_id === (int) $pf_final_level->id) { ?>
                                         <button type="button" class="btn btn-sm btn-outline-success w-100 mb-1 pf-dispatch-pharmacy"
@@ -4535,7 +4535,86 @@ $(document).on('click', '.pf-generate-pharmacy-bill', function () {
     });
 });
 
+/* QR Payment Modal: open the QR code page inside a modal instead of a new tab. */
+$(document).on('click', '.pf-open-qr-modal', function () {
+    var visitId = $(this).data('visit-id');
+    if (!visitId) { return; }
+    var $modal = $('#pfQrPaymentModal');
+    var $body = $('#pfQrPaymentModalBody');
+    $body.html('<div class="text-center py-4"><i class="fas fa-circle-notch fa-spin fa-2x text-muted mb-2"></i><div class="text-muted small">Loading QR code...</div></div>');
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('pfQrPaymentModal')).show();
+    $.get('<?php echo site_url('admin/patientflow/generate_qr_code/'); ?>' + visitId, function (resp) {
+        if (!resp || !resp.status || !resp.qr_code_image) {
+            $body.html('<div class="text-center py-4 text-danger"><i class="fa fa-exclamation-circle fa-2x mb-2"></i><div class="text-danger small">' + (resp && resp.message ? resp.message : 'Failed to load QR code.') + '</div></div>');
+            return;
+        }
+        var currency = resp.currency || '';
+        var amount = (parseFloat(resp.total_amount) || 0).toFixed(2);
+        var html = '' +
+            '<div class="container-fluid px-2 py-2">' +
+            '  <div class="row g-3">' +
+            '    <div class="col-md-7">' +
+            '      <div class="sh-form-card h-100 mb-0">' +
+            '        <div class="sh-card-header"><span class="sh-card-header-title"><i class="fa fa-user me-1"></i>Patient Details</span></div>' +
+            '        <div class="p-3">' +
+            '          <div class="pay-row mb-2"><span class="lbl">Patient</span><span class="val">—</span></div>' +
+            '          <div class="pay-row mb-2"><span class="lbl">Visit ID</span><span class="val">#' + resp.visit_id + '</span></div>' +
+            '          <div class="pay-row mb-2"><span class="lbl">Amount (' + currency + ')</span><span class="val"><strong>' + amount + '</strong></span></div>' +
+            '        </div>' +
+            '      </div>' +
+            '    </div>' +
+            '    <div class="col-md-5">' +
+            '      <div class="sh-form-card h-100 mb-0">' +
+            '        <div class="sh-card-header"><span class="sh-card-header-title"><i class="fa fa-qrcode me-1"></i>QR Payment</span></div>' +
+            '        <div class="p-3 text-center">' +
+            '          <div class="sh-pay-summary mb-3"><div class="pay-row"><span class="lbl">Payment Amount</span><span class="val">' + currency + ' ' + amount + '</span></div></div>' +
+            '          <div id="qr-display" class="mb-3">' +
+            '            <img id="qr-image" src="' + resp.qr_code_image + '" alt="QR Code" style="max-width: 240px; max-height: 240px; border: 1px solid #ddd; padding: 8px; background: #fff;" onerror="this.style.display=\'none\'; document.getElementById(\'qr-fallback\').style.display=\'block\';">' +
+            '            <div id="qr-fallback" style="display:none;"><div class="alert alert-info"><i class="fa fa-info-circle me-1"></i> QR image unavailable. <br><a href="' + resp.qr_short_url + '" target="_blank">Open QR link</a></div></div>' +
+            '          </div>' +
+            '          <div id="check-status" class="mb-3 text-muted small"></div>' +
+            '          <div class="sh-pay-actions">' +
+            '            <button type="button" id="btn-check-payment" class="btn btn-primary" data-visit-id="' + resp.visit_id + '" data-verify-url="' + '<?php echo base_url('admin/patientflow/verify_qr_payment/'); ?>' + resp.visit_id + '" data-interval="5000" data-max-attempts="12"><i class="fa fa-search me-1"></i>Check Payment</button>' +
+            '            <a href="' + '<?php echo base_url('admin/patientflow/pay?ref='); ?>' + '" target="_blank" class="btn btn-outline-secondary"><i class="fa fa-credit-card me-1"></i>Pay with Razorpay Checkout</a>' +
+            '            <button type="button" data-bs-dismiss="modal" class="btn btn-light"><i class="fa fa-chevron-left me-1"></i>Close</button>' +
+            '          </div>' +
+            '        </div>' +
+            '      </div>' +
+            '    </div>' +
+            '  </div>' +
+            '</div>';
+        $body.html(html);
+    }).fail(function () {
+        $body.html('<div class="text-center py-4 text-danger"><i class="fa fa-exclamation-circle fa-2x mb-2"></i><div class="text-danger small">Failed to load QR code.</div></div>');
+    });
+});
+
 </script>
+
+<!-- ===== QR Payment Modal ===== -->
+<div class="modal fade sh-modal sh-modal-lg sh-modal-accent" id="pfQrPaymentModal" tabindex="-1" aria-labelledby="pfQrPaymentModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="pfQrPaymentModalLabel">
+                    <i class="fa fa-qrcode me-2"></i><?php echo $this->lang->line('qr_payment') ?: 'QR Payment'; ?>
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-0" id="pfQrPaymentModalBody">
+                <div class="text-center py-4">
+                    <i class="fas fa-circle-notch fa-spin fa-2x text-muted mb-2"></i>
+                    <div class="text-muted small">Loading QR code...</div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">
+                    <?php echo $this->lang->line('close') ?: 'Close'; ?>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 
 <!-- ===== Dispense Medicines Modal ===== -->
 <div class="modal fade" id="pfDispenseModal" tabindex="-1" role="dialog" aria-labelledby="pfDispenseModalLabel" aria-hidden="true">

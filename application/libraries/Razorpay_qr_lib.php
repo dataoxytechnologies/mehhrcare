@@ -68,7 +68,7 @@ class Razorpay_qr_lib
             'fixed_amount'     => true,
             'payment_amount'   => (int) round($amount * 100), // paise
             'description'      => !empty($params['description']) ? (string) $params['description'] : 'Patient flow payment',
-            // 'customer'         => array_filter($customer),
+            // 'customer'         => array_filter($customer), // Razorpay QR API does not accept customer field
             'notes'            => $notes,
         );
 
@@ -78,13 +78,9 @@ class Razorpay_qr_lib
         }
 
         $data = $response['data'];
-        $qr_code_raw = !empty($data['qr_code']) ? $data['qr_code'] : '';
-        $qr_code_image = '';
-        if (is_array($qr_code_raw)) {
-            $qr_code_image = !empty($qr_code_raw['image_url']) ? (string) $qr_code_raw['image_url'] : '';
-        } else {
-            $qr_code_image = (string) $qr_code_raw;
-        }
+        // Razorpay v1/payments/qr_codes returns image_url at the top level,
+        // not nested inside a 'qr_code' object.
+        $qr_code_image = !empty($data['image_url']) ? (string) $data['image_url'] : '';
         return array(
             'success' => true,
             'data'    => array(
