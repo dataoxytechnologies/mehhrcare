@@ -753,14 +753,15 @@ if (!function_exists('pf_ct_age_label')) {
                                         <i class="fa fa-history"></i> &nbsp;<?php echo $this->lang->line('history') ?: 'History'; ?>
                                     </button> -->
                                      <?php
-                                     $pf_ct_arr = array(
-                                          'case_taking_type'        => (string) $v->case_taking_type,
-                                          'case_taking_description' => (string) $v->case_taking_description,
-                                      );
-                                      foreach (array('ct_sex', 'ct_primary_concern', 'ct_concern_duration', 'ct_primary_system', 'ct_dominant_nature', 'ct_bod1', 'ct_fsh1', 'ct_nos1', 'ct_constitution_code', 'ct_assessment_certainty', 'ct_status', 'ct_tissue_structure', 'ct_report_info', 'ct_review_reason', 'ct_secondary_concerns', 'ct_additional_note', 'ct_previous_treatment', 'ct_programme_suggestion', 'ct_programme_id') as $pf_ct_n) {
-                                         $pf_ct_arr[$pf_ct_n] = isset($v->$pf_ct_n) ? $v->$pf_ct_n : null;
-                                     }
-                                     $pf_ct_json = htmlspecialchars(json_encode($pf_ct_arr), ENT_QUOTES);
+                                      $pf_ct_arr = array(
+                                           'case_taking_type'        => (string) $v->case_taking_type,
+                                           'case_taking_description' => (string) $v->case_taking_description,
+                                       );
+                                       foreach (array('ct_sex', 'ct_primary_concern', 'ct_concern_duration', 'ct_primary_system', 'ct_dominant_nature', 'ct_bod1', 'ct_fsh1', 'ct_nos1', 'ct_constitution_code', 'ct_assessment_certainty', 'ct_status', 'ct_tissue_structure', 'ct_report_info', 'ct_review_reason', 'ct_secondary_concerns', 'ct_additional_note', 'ct_previous_treatment', 'ct_programme_suggestion', 'ct_programme_id') as $pf_ct_n) {
+                                           $pf_ct_arr[$pf_ct_n] = isset($v->$pf_ct_n) ? $v->$pf_ct_n : null;
+                                       }
+                                       $pf_ct_arr['broad_area_series'] = isset($v->broad_area_series) ? $v->broad_area_series : null;
+                                       $pf_ct_json = htmlspecialchars(json_encode($pf_ct_arr), ENT_QUOTES);
                                      // May this row's case taking be edited? Needs the
                                      // patient_flow / can_edit privilege, an existing case
                                      // taking, and either superadmin status OR ownership of
@@ -2120,6 +2121,14 @@ foreach ($pf_ct_slots as $pf_key => $pf_slot) {
 
                                 <input type="hidden" id="pf_ct_visit_id" value="">
                                 <input type="hidden" id="pf_ct_is_edit" value="0">
+                                <input type="hidden" id="pf_ct_broad_visit_id" value="">
+                                <input type="hidden" id="pf_ct_broad_stage_id" value="">
+                                <input type="hidden" id="pf_ct_broad_patient_uuid" value="">
+                                <input type="hidden" id="pf_ct_broad_concern" value="">
+                                <input type="hidden" id="pf_ct_broad_sex" value="">
+                                <input type="hidden" id="pf_ct_broad_bod" value="0">
+                                <input type="hidden" id="pf_ct_broad_fsh" value="0">
+                                <input type="hidden" id="pf_ct_broad_nos" value="0">
 
                                 <!-- Primary Concern & History -->
                                 <div class="sh-form-card">
@@ -2236,6 +2245,57 @@ foreach ($pf_ct_slots as $pf_key => $pf_slot) {
                                         </div>
                                     </div>
                                 </div>
+
+                                <?php if ($this->rbac->hasPrivilege('patient_flow', 'can_add')): ?>
+                                <!-- Constitution & Concern (Saved text only) -->
+                                <div class="sh-form-card mb-3" id="pf_ct_broad_constitution_card" style="display:none;">
+                                    <div class="sh-card-header">
+                                        <span class="sh-card-header-title"><i class="fa fa-user-secret"></i> Constitution &amp; Concern</span>
+                                        <button type="button" class="btn btn-sm btn-outline-dark py-0 px-2" id="pf_ct_broad_resolve" style="" title="Refresh / Resolve broad area series"><i class="fas fa-sync-alt me-1"></i> Refresh</button>
+                                    </div>
+                                    <div class="sh-card-body">
+                                        <div class="row g-2">
+                                            <div class="col-md-4">
+                                                <div class="fw-bold fs-6 mt-1"><code id="pf_ct_view_constitution">—</code></div>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <div class="fw-bold fs-6 mt-1 text-primary" id="pf_ct_view_primary_system">—</div>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <div class="fw-bold fs-6 mt-1 text-info" id="pf_ct_view_stage">—</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Select Broad Area Series -->
+                                <div class="sh-form-card mb-3" id="pf_ct_broad_series_card" style="display:none;">
+                                    <div class="sh-card-header">
+                                        <span class="sh-card-header-title"><i class="fas fa-layer-group"></i> Select Broad Area Series</span>
+                                    </div>
+                                    <div class="sh-card-body">
+                                        <div class="row g-2">
+                                            <div class="col-md-12">
+                                                <label class="form-label form-label-sm mb-1">Series</label>
+                                                <select class="form-select form-select-sm" id="pf_ct_broad_series" autocomplete="off"><option value="">Select Series</option></select>
+                                            </div>
+                                            <!-- <div class="col-md-5 d-flex align-items-end">
+                                                <button type="button" class="btn btn-sm btn-primary w-100" id="pf_ct_fetch_series">
+                                                    <i class="fas fa-search me-1"></i> Fetch Medicines
+                                                </button>
+                                            </div> -->
+                                        </div>
+                                        <div class="text-muted small mt-2">Choose a broad area series to view medicines mapped to it.</div>
+                                    </div>
+                                </div>
+
+                                <div class="alert small py-2 mb-2 d-flex align-items-center justify-content-between flex-wrap gap-2 alert-info" id="pf_ct_broad_status">
+                                    <div class="d-flex align-items-center">
+                                        <i class="fa fa-info-circle me-2" id="pf_ct_broad_icon"></i>
+                                        <span id="pf_ct_broad_status_text">Resolve Sex + Primary System to see broad area series.</span>
+                                    </div>
+                                </div>
+                                <?php endif; ?>
 
                                 <!-- Assessment & Status -->
                                 <div class="sh-form-card">
@@ -2465,59 +2525,67 @@ foreach ($pf_ct_slots as $pf_key => $pf_slot) {
                                         </div>
                                     </div>
                                     <div class="sh-info-grid pf-ct-info-grid">
-                                            <div class="sh-info-item">
-                                                <span class="sh-info-label"><i class="fas fa-calendar-alt"></i> <?php echo $this->lang->line('age'); ?></span>
-                                                <span class="sh-info-value" id="pf_ms_pi_age">&mdash;</span>
-                                            </div>
-                                            <div class="sh-info-item">
-                                                <span class="sh-info-label"><i class="fas fa-birthday-cake"></i> <?php echo $this->lang->line('date_of_birth'); ?></span>
-                                                <span class="sh-info-value" id="pf_ms_pi_dob">&mdash;</span>
-                                            </div>
-                                            <div class="sh-info-item">
-                                                <span class="sh-info-label"><i class="fas fa-venus-mars"></i> <?php echo $this->lang->line('gender'); ?></span>
-                                                <span class="sh-info-value" id="pf_ms_pi_gender">&mdash;</span>
-                                            </div>
-                                            <div class="sh-info-item">
-                                                <span class="sh-info-label"><i class="fa fa-ring"></i> <?php echo $this->lang->line('marital_status'); ?></span>
-                                                <span class="sh-info-value" id="pf_ms_pi_marital">&mdash;</span>
-                                            </div>
-                                            <div class="sh-info-item">
-                                                <span class="sh-info-label"><i class="fas fa-tint"></i> <?php echo $this->lang->line('blood_group'); ?></span>
-                                                <span class="sh-info-value" id="pf_ms_pi_blood_group">&mdash;</span>
-                                            </div>
-                                            <div class="sh-info-item">
-                                                <span class="sh-info-label"><i class="fas fa-user-friends"></i> <?php echo $this->lang->line('guardian_name'); ?></span>
-                                                <span class="sh-info-value" id="pf_ms_pi_guardian">&mdash;</span>
-                                            </div>
-                                            <div class="sh-info-item">
-                                                <span class="sh-info-label"><i class="fas fa-phone"></i> <?php echo $this->lang->line('phone'); ?></span>
-                                                <span class="sh-info-value" id="pf_ms_pi_mobile">&mdash;</span>
-                                            </div>
-                                            <div class="sh-info-item">
-                                                <span class="sh-info-label"><i class="fas fa-envelope"></i> <?php echo $this->lang->line('email'); ?></span>
-                                                <span class="sh-info-value" id="pf_ms_pi_email">&mdash;</span>
-                                            </div>
-                                            <div class="sh-info-item">
-                                                <span class="sh-info-label"><i class="fas fa-id-card"></i> <?php echo $this->lang->line('identification_number'); ?></span>
-                                                <span class="sh-info-value" id="pf_ms_pi_idno">&mdash;</span>
-                                            </div>
-                                            <div class="sh-info-item pf-ct-info-wide">
-                                                <span class="sh-info-label"><i class="fas fa-map-marker-alt"></i> <?php echo $this->lang->line('address'); ?></span>
-                                                <span class="sh-info-value" id="pf_ms_pi_address">&mdash;</span>
-                                            </div>
-                                            <div class="sh-info-item pf-ct-info-wide">
-                                                <span class="sh-info-label"><i class="fas fa-heartbeat"></i> <?php echo $this->lang->line('known_allergies'); ?></span>
-                                                <span class="sh-info-value" id="pf_ms_pi_allergies">&mdash;</span>
-                                            </div>
-                                            <div class="sh-info-item">
-                                                <span class="sh-info-label"><i class="fas fa-user-secret"></i> Constitution Code</span>
-                                                <span class="sh-info-value" id="pf_ms_constitution_code">&mdash;</span>
-                                            </div>
-                                            <div class="sh-info-item">
-                                                <span class="sh-info-label"><i class="fas fa-layer-group"></i> Variant</span>
-                                                <span class="sh-info-value" id="pf_ms_variant_badge">&mdash;</span>
-                                            </div>
+                                        <div class="sh-info-item">
+                                            <span class="sh-info-label"><i class="fas fa-calendar-alt"></i> <?php echo $this->lang->line('age'); ?></span>
+                                            <span class="sh-info-value" id="pf_ms_pi_age">&mdash;</span>
                                         </div>
+                                        <div class="sh-info-item">
+                                            <span class="sh-info-label"><i class="fas fa-birthday-cake"></i> <?php echo $this->lang->line('date_of_birth'); ?></span>
+                                            <span class="sh-info-value" id="pf_ms_pi_dob">&mdash;</span>
+                                        </div>
+                                        <div class="sh-info-item">
+                                            <span class="sh-info-label"><i class="fas fa-venus-mars"></i> <?php echo $this->lang->line('gender'); ?></span>
+                                            <span class="sh-info-value" id="pf_ms_pi_gender">&mdash;</span>
+                                        </div>
+                                        <div class="sh-info-item">
+                                            <span class="sh-info-label"><i class="fa fa-ring"></i> <?php echo $this->lang->line('marital_status'); ?></span>
+                                            <span class="sh-info-value" id="pf_ms_pi_marital">&mdash;</span>
+                                        </div>
+                                        <div class="sh-info-item">
+                                            <span class="sh-info-label"><i class="fas fa-tint"></i> <?php echo $this->lang->line('blood_group'); ?></span>
+                                            <span class="sh-info-value" id="pf_ms_pi_blood_group">&mdash;</span>
+                                        </div>
+                                        <div class="sh-info-item">
+                                            <span class="sh-info-label"><i class="fas fa-user-friends"></i> <?php echo $this->lang->line('guardian_name'); ?></span>
+                                            <span class="sh-info-value" id="pf_ms_pi_guardian">&mdash;</span>
+                                        </div>
+                                        <div class="sh-info-item">
+                                            <span class="sh-info-label"><i class="fas fa-phone"></i> <?php echo $this->lang->line('phone'); ?></span>
+                                            <span class="sh-info-value" id="pf_ms_pi_mobile">&mdash;</span>
+                                        </div>
+                                        <div class="sh-info-item">
+                                            <span class="sh-info-label"><i class="fas fa-envelope"></i> <?php echo $this->lang->line('email'); ?></span>
+                                            <span class="sh-info-value" id="pf_ms_pi_email">&mdash;</span>
+                                        </div>
+                                        <div class="sh-info-item">
+                                            <span class="sh-info-label"><i class="fas fa-id-card"></i> <?php echo $this->lang->line('identification_number'); ?></span>
+                                            <span class="sh-info-value" id="pf_ms_pi_idno">&mdash;</span>
+                                        </div>
+                                        <div class="sh-info-item pf-ct-info-wide">
+                                            <span class="sh-info-label"><i class="fas fa-map-marker-alt"></i> <?php echo $this->lang->line('address'); ?></span>
+                                            <span class="sh-info-value" id="pf_ms_pi_address">&mdash;</span>
+                                        </div>
+                                        <div class="sh-info-item pf-ct-info-wide">
+                                            <span class="sh-info-label"><i class="fas fa-heartbeat"></i> <?php echo $this->lang->line('known_allergies'); ?></span>
+                                            <span class="sh-info-value" id="pf_ms_pi_allergies">&mdash;</span>
+                                        </div>
+                                        <div class="sh-info-item">
+                                            <span class="sh-info-label"><i class="fas fa-user-secret"></i> Constitution Code</span>
+                                            <span class="sh-info-value" id="pf_ms_constitution_code">&mdash;</span>
+                                        </div>
+                                        <div class="sh-info-item">
+                                            <span class="sh-info-label"><i class="fas fa-layer-group"></i> Variant</span>
+                                            <span class="sh-info-value" id="pf_ms_variant_badge">&mdash;</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="sh-form-card d-none" id="pf_ms_reason_wrapper">
+                                <div class="sh-card-header">
+                                    <span class="sh-card-header-title"><i class="fa fa-user"></i> Reason</span>
+                                </div>
+                                <div class="sh-card-body">
+                                    <textarea class="form-control form-control-sm mb-2" id="pf_ms_reason" rows="2" placeholder="Reason for prescribing FX/E medicine..."></textarea>
                                 </div>
                             </div>
                         </div>
@@ -2536,7 +2604,7 @@ foreach ($pf_ct_slots as $pf_key => $pf_slot) {
                             <input type="hidden" id="pf_ms_nos" value="">
 
                             <!-- Constitution & Concern (Saved text only) -->
-                            <div class="sh-form-card mb-3">
+                            <div class="sh-form-card mb-3" style="display:none;">
                                 <div class="sh-card-header">
                                     <span class="sh-card-header-title"><i class="fa fa-user-secret"></i> Constitution &amp; Concern</span>
 
@@ -2564,7 +2632,7 @@ foreach ($pf_ct_slots as $pf_key => $pf_slot) {
 
                             <div class="sh-form-card mb-3" id="pf_ms_broad_series_card" style="display:none;">
                                 <div class="sh-card-header">
-                                    <span class="sh-card-header-title"><i class="fa fa-layer-group"></i> Select Broad Area Series</span>
+                                    <span class="sh-card-header-title"><i class="fas fa-layer-group"></i> Select Broad Area Series</span>
                                 </div>
                                 <div class="sh-card-body">
                                     <div class="row g-2">
@@ -2584,7 +2652,7 @@ foreach ($pf_ct_slots as $pf_key => $pf_slot) {
                                 </div>
                             </div>
 
-                            <div class="alert alert-info small py-2 mb-2 d-flex align-items-center justify-content-between flex-wrap gap-2" id="pf_med_select_status">
+                            <div class="alert alert-info small py-2 mb-2 mt-3 d-flex align-items-center justify-content-between flex-wrap gap-2" id="pf_med_select_status">
                                 <div class="d-flex align-items-center">
                                     <i class="fa fa-info-circle me-2" id="pf_med_select_icon"></i>
                                     <span id="pf_med_select_text">Resolving medicines...</span>
@@ -2632,9 +2700,6 @@ foreach ($pf_ct_slots as $pf_key => $pf_slot) {
                 <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">
                     <?php echo $this->lang->line('cancel') ?: 'Cancel'; ?>
                 </button>
-                <div class="d-none" id="pf_ms_reason_wrapper">
-                    <textarea class="form-control form-control-sm mb-2" id="pf_ms_reason" rows="2" placeholder="Reason for prescribing FX/E medicine..."></textarea>
-                </div>
                 <button type="button" class="btn btn-info" id="pf_ms_save">
                     <i class="fa fa-check-circle"></i> <?php echo $this->lang->line('save') ?: 'Save'; ?>
                 </button>
@@ -2733,6 +2798,215 @@ function pfCtPreviewCode() {
 $(document).on('change', '#pf_ct_sex, #pf_ct_bod1, #pf_ct_fsh1, #pf_ct_nos1', function () {
     pfCtPreviewCode();
 });
+// Resolve the broad area series for the case taking modal from Sex + Primary
+// System (+ body/face/nose) via the existing get_medicines_for_visit endpoint.
+// Populates the #pf_ct_broad_series selectbox and shows the broad area card.
+function pfCtFetchBroadSeries() {
+    var $card = $('#pf_ct_broad_series_card');
+    var $constCard = $('#pf_ct_broad_constitution_card');
+    var $sel = $('#pf_ct_broad_series');
+    var $status = $('#pf_ct_broad_status');
+    var $statusText = $('#pf_ct_broad_status_text');
+    var ActConstCode = $('#pf_ct_view_constitution');
+    var $concern = $('#pf_ct_view_primary_system');
+    var $stage = $('#pf_ct_view_stage');
+    var visitId = $('#pf_ct_visit_id').val();
+    if (!visitId) {
+        $card.hide(); $constCard.hide(); $status.hide();
+        return;
+    }
+    var sex = $('#pf_ct_sex').val() || '';
+    var primarySystem = $('#pf_ct_primary_system').val() || '';
+    var bod = parseInt($('#pf_ct_bod1').val(), 10) || 0;
+    var fsh = parseInt($('#pf_ct_fsh1').val(), 10) || 0;
+    var nos = parseInt($('#pf_ct_nos1').val(), 10) || 0;
+    var concern = $('#pf_ct_primary_concern').val() || '';
+
+    // Populate hidden inputs for AJAX calls.
+    $('#pf_ct_broad_visit_id').val(visitId);
+    $('#pf_ct_broad_concern').val(concern);
+    $('#pf_ct_broad_sex').val(sex);
+    $('#pf_ct_broad_bod').val(bod);
+    $('#pf_ct_broad_fsh').val(fsh);
+    $('#pf_ct_broad_nos').val(nos);
+
+    // Show constitution & concern card with read-only text.
+    var g = (sex === 'M') ? 'Male' : (sex === 'F') ? 'Female' : '';
+    var constCode = '—';
+    if (g && bod && fsh && nos) {
+        for (var i = 0; i < pfConstitutionRows.length; i++) {
+            var r = pfConstitutionRows[i];
+            if (r.g === g && r.b === bod && r.f === fsh && r.n === nos) { constCode = r.c; break; }
+        }
+    }
+    ActConstCode.text(constCode);
+    console.log('Resolved constitution code:', constCode);
+    $concern.text(primarySystem || '—');
+    $constCard.show();
+
+    if (sex === '' || primarySystem === '' || bod <= 0 || fsh <= 0 || nos <= 0) {
+        $card.hide();
+        $sel.empty().append('<option value="">Select Series</option>');
+        $stage.text('—');
+        $status.removeClass('alert-info alert-success alert-warning').addClass('alert-info');
+        $statusText.text('Complete Sex, Primary System, Body, Face and Nose to resolve series.');
+        $status.show();
+        return;
+    }
+
+    // Resolve stage code for display.
+    $.post('<?php echo site_url('admin/patientflow/get_medicines_for_visit'); ?>', {
+        visit_id: visitId,
+        gender: sex,
+        concern: concern,
+        primary_system: primarySystem,
+        body_build_id: bod,
+        face_shape_id: fsh,
+        nose_type_id: nos
+    }, function (response) {
+        $sel.empty().append('<option value="">Select Series</option>');
+        if (!response.status || !response.data) {
+            $card.hide();
+            $stage.text('—');
+            $status.removeClass('alert-info alert-success alert-warning').addClass('alert-danger');
+            $statusText.text(response.message || 'Failed to resolve broad area series.');
+            $status.show();
+            return;
+        }
+        var data = response.data;
+        if (data.stage && data.stage.stage_code) {
+            $stage.text(data.stage.stage_code);
+            $('#pf_ct_broad_stage_id').val(data.stage.stage_id || '');
+        } else {
+            $stage.text('—');
+            $('#pf_ct_broad_stage_id').val('');
+        }
+        if (!data.broad_area_series || data.broad_area_series.length === 0) {
+            $card.hide();
+            $status.removeClass('alert-info alert-success alert-warning').addClass('alert-warning');
+            $statusText.text('No broad area series matched for this case.');
+            $status.show();
+            return;
+        }
+        var series = data.broad_area_series;
+        series.forEach(function (s) {
+            $sel.append('<option value="' + s + '">' + s + '</option>');
+        });
+        $('#pf_ct_view_constitution').text(constCode);
+        $card.show();
+        $status.removeClass('alert-danger alert-warning alert-success').addClass('alert-info');
+        $statusText.text('Broad area series resolved.');
+        $status.show();
+    }, 'json').fail(function () {
+        $card.hide();
+        $stage.text('—');
+        $status.removeClass('alert-info alert-success alert-warning').addClass('alert-danger');
+        $statusText.text('Failed to resolve broad area series.');
+        $status.show();
+    });
+}
+// Fetch medicines for the selected broad area series (grouped by series table).
+function pfCtFetchMedicinesBySeries() {
+    var visitId = $('#pf_ct_broad_visit_id').val();
+    var seriesCode = $('#pf_ct_broad_series').val();
+    var stageId = $('#pf_ct_broad_stage_id').val();
+    var $table = $('#pf_ct_broad_table');
+    var $tbody = $('#pf_ct_broad_table_rows');
+    var $wrapper = $('#pf_ct_broad_table_wrapper');
+    var $status = $('#pf_ct_broad_status');
+    var $statusText = $('#pf_ct_broad_status_text');
+    if (!visitId) {
+        $status.removeClass('alert-info alert-success alert-warning').addClass('alert-danger');
+        $statusText.text('No visit selected.');
+        $status.show();
+        return;
+    }
+    if (!seriesCode) {
+        $status.removeClass('alert-info alert-success alert-warning').addClass('alert-warning');
+        $statusText.text('Please select a broad area series.');
+        $status.show();
+        return;
+    }
+    $status.removeClass('alert-danger alert-warning alert-success').addClass('alert-info');
+    $statusText.text('Fetching medicines for series ' + seriesCode + '…');
+    $status.show();
+    $wrapper.hide();
+    $tbody.empty();
+
+    $.post('<?php echo site_url('admin/patientflow/get_medicines_by_series'); ?>', {
+        visit_id: visitId,
+        series_code: seriesCode,
+        stage_id: stageId
+    }, function (resp) {
+        if (!resp.status) {
+            $status.removeClass('alert-info alert-success alert-warning').addClass('alert-danger');
+            $statusText.text(resp.message || 'Failed to fetch medicines.');
+            $status.show();
+            return;
+        }
+        var data = resp.data || {};
+        var meds = data.medicines || [];
+        if (meds.length === 0) {
+            $status.removeClass('alert-info alert-success alert-danger').addClass('alert-warning');
+            $statusText.text('No medicines found for series ' + seriesCode + '.');
+            $status.show();
+            return;
+        }
+        // Group medicines by series field.
+        var seriesOrder = ['F', 'FA', 'FB', 'FC', 'FD', 'FX', 'E'];
+        var medGrouped = {};
+        meds.forEach(function (m) {
+            var s = m.series || '—';
+            if (!medGrouped[s]) { medGrouped[s] = []; }
+            medGrouped[s].push(m);
+        });
+        var rows = '';
+        var rowNum = 0;
+        seriesOrder.forEach(function (series) {
+            var smeds = medGrouped[series] || [];
+            if (smeds.length === 0) { return; }
+            var seriesLabel = series;
+            if (series === 'FX') { seriesLabel = 'FX (Universal)'; }
+            if (series === 'E') { seriesLabel = 'E (Universal)'; }
+            rows += '<tr style="background:#e9ecef;font-weight:700;"><td colspan="9">Series ' + seriesLabel + '</td></tr>';
+            smeds.forEach(function (m) {
+                rowNum++;
+                rows += '<tr>' +
+                    '<td>' + rowNum + '</td>' +
+                    '<td>' + (m.series || '—') + '</td>' +
+                    '<td><code>' + (m.code || '—') + '</code><div class="small text-muted">' + (m.identity || '') + '</div></td>' +
+                    '<td>' + (m.patient_dose || '—') + '</td>' +
+                    '<td>' + (m.route_method || '—') + '</td>' +
+                    '<td>' + (m.timing || '—') + '</td>' +
+                    '<td>' + (m.frequency || '—') + '</td>' +
+                    '<td>' + (m.duration_text || '—') + '</td>' +
+                    '<td>' + (m.dispensing_qty_ml || '—') + '</td>' +
+                    '</tr>';
+            });
+        });
+        $tbody.html(rows);
+        $wrapper.show();
+        $status.removeClass('alert-info alert-warning alert-danger').addClass('alert-success');
+        $statusText.text(meds.length + ' medicine(s) resolved for series ' + seriesCode + '.');
+        $status.show();
+    }, 'json').fail(function () {
+        $status.removeClass('alert-info alert-success alert-warning').addClass('alert-danger');
+        $statusText.text('Server error while fetching medicines.');
+        $status.show();
+    });
+}
+// Fetch medicines when the user selects a series and clicks Fetch Medicines.
+$(document).on('click', '#pf_ct_fetch_series', function () {
+    pfCtFetchMedicinesBySeries();
+});
+// Refresh / re-resolve broad area series from the Constitution & Concern card.
+$(document).on('click', '#pf_ct_broad_resolve', function () {
+    pfCtFetchBroadSeries();
+});
+// Re-resolve broad area series when Sex, Primary System, or Constitution fields change.
+$(document).on('change', '#pf_ct_sex, #pf_ct_primary_system, #pf_ct_bod1, #pf_ct_fsh1, #pf_ct_nos1', function () {
+    pfCtFetchBroadSeries();
+});
 // Input id per posted field; type/description keep their legacy ids.
 function pfCtInputId(name) {
     if (name === 'case_taking_type') { return 'pf_ct_type'; }
@@ -2816,6 +3090,8 @@ function pfCtOpenForm(opts) {
     if (!$('#pf_ct_status').val()) { $('#pf_ct_status').val('Open'); } // default workflow status
     $('#pf_ct_notice').addClass('d-none').text('');
     pfCtPreviewCode();
+    // Resolve broad area series when sex / primary system are already set.
+    pfCtFetchBroadSeries();
     bootstrap.Modal.getOrCreateInstance(document.getElementById('pfCaseModal')).show();
 }
 
@@ -3006,7 +3282,7 @@ $(document).on('click', '#pf_ctv_manage_meds', function () {
             patient: pfCtViewCtx.patient,
             patientUuid: pfCtViewCtx.patientUuid,
             ct: pfCtViewCtx.ct,
-            storedSeries: '',
+            storedSeries: pfCtViewCtx.ct.broad_area_series || '',
             storedReason: ''
         });
     }, 250);
@@ -3032,6 +3308,10 @@ $(document).on('click', '#pf_ct_save', function () {
     pfCtNeed('pf_ct_bod1', 'Body Type');
     pfCtNeed('pf_ct_fsh1', 'Face Type');
     pfCtNeed('pf_ct_nos1', 'Nose Type');
+    // Broad Area Series is required when the series card is visible (resolved).
+    if ($('#pf_ct_broad_series_card').is(':visible')) {
+        pfCtNeed('pf_ct_broad_series', 'Broad Area Series');
+    }
     var certainty = $('#pf_ct_assessment_certainty').val() || '';
     var ctStatus = $('#pf_ct_status').val() || '';
     if (!certainty) { missing.push('Assessment certainty'); }
@@ -3047,12 +3327,17 @@ $(document).on('click', '#pf_ct_save', function () {
     for (var i = 0; i < pfCtCols.length; i++) {
         payload[pfCtCols[i]] = $('#' + pfCtInputId(pfCtCols[i])).val();
     }
+    payload.broad_area_series = $('#pf_ct_broad_series').val() || '';
     var $btn = $(this).prop('disabled', true);
     $.post('<?php echo site_url('admin/patientflow/save_case_taking'); ?>', payload,
         function (response) {
             $btn.prop('disabled', false);
             if (response.status) {
-                successMsg(response.message);
+                var msg = response.message;
+                if ((response.medicines_saved || 0) > 0 || (response.medicines_skipped || 0) > 0) {
+                    msg += ' (' + response.medicines_saved + ' locked medicine(s) auto-prescribed, ' + response.medicines_skipped + ' skipped).';
+                }
+                successMsg(msg);
                 var modalEl = document.getElementById('pfCaseModal');
                 bootstrap.Modal.getInstance(modalEl).hide();
                 setTimeout(function () { window.location.reload(); }, 900);
@@ -3131,17 +3416,18 @@ function pfMsResolveMedicines() {
             broadSeries.forEach(function (s) {
                 $seriesSel.append('<option value="' + s + '">' + s + '</option>');
             });
-            $seriesCard.show();
+            // Keep the series card hidden; medicines are fetched automatically
+            // when a stored series exists.
         } else {
             $seriesCard.hide();
         }
 
         // Preselect the previously saved broad area series and auto-fetch
         // its medicines so already-assigned checkboxes show pre-checked.
+        // (Series card stays hidden; medicines are fetched automatically.)
         var pfPresel = window.pfMsPreselectSeries || '';
         if (pfPresel !== '' && $seriesSel.find('option[value="' + pfPresel + '"]').length > 0) {
             $seriesSel.val(pfPresel);
-            $seriesCard.show();
             setTimeout(function () {
                 $('#pf_ms_fetch_series').click();
             }, 50);
@@ -3151,7 +3437,11 @@ function pfMsResolveMedicines() {
         $('#pf_med_select_table_wrapper').hide();
         $('#pf_med_select_table_rows').empty();
         $('#pf_med_select_status').removeClass('alert-info alert-danger alert-warning').addClass('alert-info');
-        $('#pf_med_select_text').text('Broad area series resolved. Select a series and click Fetch Medicines.');
+        if (pfPresel !== '') {
+            $('#pf_med_select_text').text('Fetching medicines for series ' + pfPresel + '…');
+        } else {
+            $('#pf_med_select_text').text('Broad area series resolved. Select a series and click Fetch Medicines.');
+        }
         $('#pf_ms_resolve').show();
         }, 'json').fail(function () {
             $('#pf_ms_resolve').prop('disabled', false).html('<i class="fas fa-sync-alt me-1"></i> Refresh').show();

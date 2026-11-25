@@ -3923,9 +3923,43 @@ foreach ($slots as $pfx => $label) {
             echo json_encode(array('status' => false, 'message' => 'You are not allowed to take a case at this level.'));
             return;
         }
+        // Broad area series (required; stored on the visit).
+        $broad_area_series = strtoupper(trim((string) $this->input->post('broad_area_series', true)));
+        $is_edit = (int) $this->input->post('is_edit', true);
+        if ($broad_area_series === '') {
+            echo json_encode(array('status' => false, 'message' => 'Please select a Broad Area Series.'));
+            return;
+        }
+
         $result = $this->patientflow_model->set_case_taking(
             $visit_id, $type, $description, $this->customlib->getStaffID(), $extra
         );
+
+        // Store the selected broad area series on the visit (add or edit).
+        $medicines_saved = 0;
+        $medicines_skipped = 0;
+        if ($result['status'] && $broad_area_series !== '') {
+            $this->db->where('id', $visit_id)
+                ->update('patient_flow_visits', array('broad_area_series' => $broad_area_series));
+            // Auto-save locked medicines only on the initial case taking save
+            // (is_edit === 0) to avoid duplicating prescriptions on edits.
+            if ($is_edit === 0) {
+                $auto = $this->patientflow_model->auto_save_locked_medicines(
+                    $visit_id, $this->customlib->getStaffID(), $broad_area_series
+                );
+                if (isset($auto['saved'])) {
+                    $medicines_saved = (int) $auto['saved'];
+                }
+                if (isset($auto['skipped'])) {
+                    $medicines_skipped = (int) $auto['skipped'];
+                }
+            }
+        }
+        if ($medicines_saved > 0 || $medicines_skipped > 0) {
+            $result['message'] .= ' ' . trim("$medicines_saved locked medicine(s) auto-prescribed, $medicines_skipped skipped.");
+        }
+        $result['medicines_saved'] = $medicines_saved;
+        $result['medicines_skipped'] = $medicines_skipped;
         echo json_encode($result);
     }
 

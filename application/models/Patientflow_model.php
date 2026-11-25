@@ -6026,6 +6026,128 @@ class Patientflow_model extends CI_Model
         return $this->db->get()->result_array();
     }
 
+    /**
+     * Auto-save locked medicines (F/FB/FC/FD series only — never FX/E) for a
+     * selected broad area series at the current visit stage.
+     *
+     * Mirrors get_medicines_by_series_code() steps 1-2 (F-series mapping +
+     * daily medicines filtered by the series' pair_group, FA excluded) but
+     * skips FX/E entirely and never inserts duplicate active prescriptions.
+     * Each medicine is inserted via save_prescription() so the per-medicine
+     * dispensing gate is enforced; gate failures are counted as skipped.
+     *
+     * @param int    $visit_id
+     * @param int    $staff_id
+     * @param string $broad_area_series
+     * @return array status, message, saved, skipped, saved_ids
+     */
+    public function auto_save_locked_medicines($visit_id, $staff_id, $broad_area_series)
+    {
+        if (!$this->db->table_exists('patient_flow_prescription')) {
+            return array('status' => false, 'message' => 'Prescription table not found.', 'saved' => 0, 'skipped' => 0, 'saved_ids' => array());
+        }
+        $visit_id = (int) $visit_id;
+        $staff_id = (int) $staff_id;
+        $broad_area_series = strtoupper(trim((string) $broad_area_series));
+        if ($visit_id <= 0 || $broad_area_series === '') {
+            return array('status' => false, 'message' => 'Invalid parameters.', 'saved' => 0, 'skipped' => 0, 'saved_ids' => array());
+        }
+        // Visit must exist.
+        $visit = $this->db->where('id', $visit_id)->get('patient_flow_visits')->row();
+        if (!$visit) {
+            return array('status' => false, 'message' => 'Visit not found.', 'saved' => 0, 'skipped' => 0, 'saved_ids' => array());
+        }
+        // FX and E series are never auto-saved.
+        if (in_array($broad_area_series, array('FX', 'E'), true)) {
+            return array('status' => true, 'message' => 'Series excluded from auto-save.', 'saved' => 0, 'skipped' => 0, 'saved_ids' => array());
+        }
+        // Current stage of the visit.
+        $stage = $this->get_stage_from_visit($visit_id);
+        $stage_id = (int) ($stage['stage_id'] ?: 0);
+        if ($stage_id <= 0) {
+            return array('status' => false, 'message' => 'No current stage assigned to visit.', 'saved' => 0, 'skipped' => 0, 'saved_ids' => array());
+        }
+        $medicines = array();
+        // 1) Locked F-series medicines for this broad area series + stage.
+        $f_rows = $this->get_f_medicines_by_series_stage($broad_area_series, $stage_id);
+        foreach ($f_rows as $r) {
+            $medicines[] = array(
+                'medicine_id' => (int) $r->medicine_id,
+                'series' => 'F',
+                'variant' => 1,
+            );
+        }
+        // 2) Locked daily medicines for this stage, filtered by the series'
+        //    pair_group. Exclude FA, FX, E series (auto-save covers F/FB/FC/FD).
+        $allowed_pair_groups = array();
+        if ($this->db->table_exists('broad_area_series')) {
+            $srow = $this->db->where('code', $broad_area_series)->get('broad_area_series')->row();
+            if ($srow && $srow->pair_group !== null && $srow->pair_group !== '') {
+                $allowed_pair_groups[] = (string) $srow->pair_group;
+            }
+        }
+        if (!empty($allowed_pair_groups)) {
+            $daily_rows = $this->get_daily_medicines_by_stage($stage_id, 'Morning', $allowed_pair_groups);
+            foreach ($daily_rows as $r) {
+                $series = strtoupper(trim((string) ($r->series ?: '')));
+                if (in_array($series, array('FA', 'FX', 'E'), true)) {
+                    continue;
+                }
+                $medicines[] = array(
+                    'medicine_id' => (int) $r->medicine_id,
+                    'series' => $series,
+                    'variant' => 1,
+                );
+            }
+        }
+        // Deduplicate by medicine_id (keep first occurrence).
+        $seen = array();
+        $unique = array();
+        foreach ($medicines as $m) {
+            $mid = (int) $m['medicine_id'];
+            if ($mid <= 0 || isset($seen[$mid])) {
+                continue;
+            }
+            $seen[$mid] = true;
+            $unique[] = $m;
+        }
+        // Already active prescriptions for this visit (duplicate prevention).
+        $existing = array();
+        $rows = $this->db->where('visit_id', $visit_id)->where('is_active', 1)
+            ->get('patient_flow_prescription')->result_array();
+        foreach ($rows as $e) {
+            $existing[(int) $e['medicine_id']] = true;
+        }
+        $saved = 0;
+        $skipped = 0;
+        $saved_ids = array();
+        foreach ($unique as $m) {
+            $mid = (int) $m['medicine_id'];
+            $series = strtoupper(trim((string) ($m['series'] ?: '')));
+            $variant = (int) ($m['variant'] ?: 1);
+            if (isset($existing[$mid])) {
+                $skipped++;
+                continue;
+            }
+            // Per-medicine dispensing gate via save_prescription();
+            // gate failures are skipped silently.
+            $res = $this->save_prescription($visit_id, $mid, $staff_id, $series, $variant);
+            if (!empty($res['status'])) {
+                $saved++;
+                $saved_ids[] = $mid;
+            } else {
+                $skipped++;
+            }
+        }
+        return array(
+            'status' => true,
+            'message' => "$saved medicine(s) auto-prescribed, $skipped skipped.",
+            'saved' => $saved,
+            'skipped' => $skipped,
+            'saved_ids' => $saved_ids,
+        );
+    }
+
     // ============ Step 7: Dispensing Gate ============
 
     /**
