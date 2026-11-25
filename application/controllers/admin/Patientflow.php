@@ -2091,6 +2091,7 @@ class Patientflow extends Admin_Controller
 
         // Return JSON for AJAX (modal) requests; render full page otherwise.
         if ($this->input->is_ajax_request()) {
+            header('Content-Type: application/json');
             echo json_encode(array(
                 'status'        => true,
                 'visit_id'      => (int) $visit->id,
@@ -3894,6 +3895,7 @@ foreach ($slots as $pfx => $label) {
         $opt_text = array(
             'ct_tissue_structure', 'ct_report_info', 'ct_secondary_concerns',
             'ct_additional_note', 'ct_previous_treatment', 'ct_programme_suggestion',
+            'ct_purpose', 'ct_indication',
         );
         foreach ($opt_text as $f) {
             $val = trim((string) $this->input->post($f, true));
@@ -3974,6 +3976,21 @@ foreach ($slots as $pfx => $label) {
         $result['medicines_saved'] = $medicines_saved;
         $result['medicines_skipped'] = $medicines_skipped;
         echo json_encode($result);
+    }
+
+    public function get_medicine_master_unique_values()
+    {
+        if (!$this->rbac->hasPrivilege('patient_flow', 'can_add')) {
+            echo json_encode(array('status' => false, 'message' => 'Access denied.'));
+            return;
+        }
+        $field = trim((string) $this->input->post('field', true));
+        $values = $this->patientflow_model->get_medicine_master_unique_values($field);
+        echo json_encode(array(
+            'status' => true,
+            'field'  => $field,
+            'values' => $values,
+        ));
     }
 
     public function get_medicines_for_visit()

@@ -757,7 +757,7 @@ if (!function_exists('pf_ct_age_label')) {
                                            'case_taking_type'        => (string) $v->case_taking_type,
                                            'case_taking_description' => (string) $v->case_taking_description,
                                        );
-                                       foreach (array('ct_sex', 'ct_primary_concern', 'ct_concern_duration', 'ct_primary_system', 'ct_dominant_nature', 'ct_bod1', 'ct_fsh1', 'ct_nos1', 'ct_constitution_code', 'ct_assessment_certainty', 'ct_status', 'ct_tissue_structure', 'ct_report_info', 'ct_review_reason', 'ct_secondary_concerns', 'ct_additional_note', 'ct_previous_treatment', 'ct_programme_suggestion', 'ct_programme_id') as $pf_ct_n) {
+                                        foreach (array('ct_sex', 'ct_primary_concern', 'ct_concern_duration', 'ct_primary_system', 'ct_dominant_nature', 'ct_bod1', 'ct_fsh1', 'ct_nos1', 'ct_constitution_code', 'ct_assessment_certainty', 'ct_status', 'ct_tissue_structure', 'ct_report_info', 'ct_review_reason', 'ct_secondary_concerns', 'ct_additional_note', 'ct_previous_treatment', 'ct_programme_suggestion', 'ct_programme_id', 'ct_purpose', 'ct_indication') as $pf_ct_n) {
                                            $pf_ct_arr[$pf_ct_n] = isset($v->$pf_ct_n) ? $v->$pf_ct_n : null;
                                        }
                                        $pf_ct_arr['broad_area_series'] = isset($v->broad_area_series) ? $v->broad_area_series : null;
@@ -2194,6 +2194,12 @@ foreach ($pf_ct_slots as $pf_key => $pf_slot) {
                                                     <option value="emergency"><?php echo $this->lang->line('case_emergency') ?: 'Emergency'; ?></option>
                                                     <option value="review"><?php echo $this->lang->line('case_review') ?: 'Review'; ?></option>
                                                 </select></div>
+
+                                            <div class="col-md-6"><label class="form-label form-label-sm">Purpose <small class="text-muted">(from medicine master)</small></label>
+                                                <select class="form-select" id="pf_ct_purpose"><option value="">Select Purpose</option></select></div>
+                                            <div class="col-md-6"><label class="form-label form-label-sm">Indication <small class="text-muted">(from medicine master)</small></label>
+                                                <select class="form-select" id="pf_ct_indication"><option value="">Select Indication</option></select></div>
+
                                             <div class="col-md-6"><label class="form-label form-label-sm">Tissue / structure <small class="text-muted">(when relevant to broad area)</small></label>
                                                 <input type="text" class="form-control" id="pf_ct_tissue_structure" maxlength="255"></div>
                                             <div class="col-md-6"><label class="form-label form-label-sm">Report information <small class="text-muted">(when reports exist)</small></label>
@@ -2721,7 +2727,8 @@ var pfCtCols = [
     'ct_sex', 'ct_primary_concern', 'ct_concern_duration', 'ct_primary_system', 'ct_dominant_nature',
     'ct_bod1', 'ct_fsh1', 'ct_nos1',
     'ct_assessment_certainty', 'ct_status', 'ct_tissue_structure', 'ct_report_info',
-    'ct_review_reason', 'ct_secondary_concerns', 'ct_additional_note', 'ct_previous_treatment', 'ct_programme_suggestion', 'ct_programme_id'
+    'ct_review_reason', 'ct_secondary_concerns', 'ct_additional_note', 'ct_previous_treatment', 'ct_programme_suggestion', 'ct_programme_id',
+    'ct_purpose', 'ct_indication',
 ];
 
 var pfCtLookup = <?php echo json_encode($pf_lk); ?>;
@@ -2904,6 +2911,32 @@ function pfCtFetchBroadSeries() {
         $statusText.text('Failed to resolve broad area series.');
         $status.show();
     });
+}
+// Fetch unique purpose / indication values from medicine_master for the case
+// taking modal selectboxes.
+function pfCtFetchMedicineMasterValues(purposeVal, indicationVal) {
+    var $purposeSel = $('#pf_ct_purpose');
+    var $indicationSel = $('#pf_ct_indication');
+    purposeVal = purposeVal || '';
+    indicationVal = indicationVal || '';
+    $purposeSel.empty().append('<option value="">Select Purpose</option>');
+    $indicationSel.empty().append('<option value="">Select Indication</option>');
+    $.post('<?php echo site_url('admin/patientflow/get_medicine_master_unique_values'); ?>', { field: 'purpose' }, function (resp) {
+        if (resp.status && resp.values) {
+            resp.values.forEach(function (v) {
+                var sel = (v === purposeVal) ? ' selected' : '';
+                $purposeSel.append('<option value="' + v + '"' + sel + '>' + v + '</option>');
+            });
+        }
+    }, 'json');
+    $.post('<?php echo site_url('admin/patientflow/get_medicine_master_unique_values'); ?>', { field: 'indication' }, function (resp) {
+        if (resp.status && resp.values) {
+            resp.values.forEach(function (v) {
+                var sel = (v === indicationVal) ? ' selected' : '';
+                $indicationSel.append('<option value="' + v + '"' + sel + '>' + v + '</option>');
+            });
+        }
+    }, 'json');
 }
 // Fetch medicines for the selected broad area series (grouped by series table).
 function pfCtFetchMedicinesBySeries() {
@@ -3092,6 +3125,9 @@ function pfCtOpenForm(opts) {
     pfCtPreviewCode();
     // Resolve broad area series when sex / primary system are already set.
     pfCtFetchBroadSeries();
+    // Populate Purpose / Indication selectboxes from medicine_master (pass saved
+    // values so they re-select after options are loaded).
+    pfCtFetchMedicineMasterValues(ct.ct_purpose || '', ct.ct_indication || '');
     bootstrap.Modal.getOrCreateInstance(document.getElementById('pfCaseModal')).show();
 }
 
@@ -4543,7 +4579,11 @@ $(document).on('click', '.pf-open-qr-modal', function () {
     var $body = $('#pfQrPaymentModalBody');
     $body.html('<div class="text-center py-4"><i class="fas fa-circle-notch fa-spin fa-2x text-muted mb-2"></i><div class="text-muted small">Loading QR code...</div></div>');
     bootstrap.Modal.getOrCreateInstance(document.getElementById('pfQrPaymentModal')).show();
-    $.get('<?php echo site_url('admin/patientflow/generate_qr_code/'); ?>' + visitId, function (resp) {
+    $.ajax({
+        url: '<?php echo site_url('admin/patientflow/generate_qr_code/'); ?>' + visitId,
+        type: 'GET',
+        dataType: 'json',
+        success: function (resp) {
         if (!resp || !resp.status || !resp.qr_code_image) {
             $body.html('<div class="text-center py-4 text-danger"><i class="fa fa-exclamation-circle fa-2x mb-2"></i><div class="text-danger small">' + (resp && resp.message ? resp.message : 'Failed to load QR code.') + '</div></div>');
             return;
@@ -4551,43 +4591,97 @@ $(document).on('click', '.pf-open-qr-modal', function () {
         var currency = resp.currency || '';
         var amount = (parseFloat(resp.total_amount) || 0).toFixed(2);
         var html = '' +
-            '<div class="container-fluid px-2 py-2">' +
-            '  <div class="row g-3">' +
-            '    <div class="col-md-7">' +
-            '      <div class="sh-form-card h-100 mb-0">' +
-            '        <div class="sh-card-header"><span class="sh-card-header-title"><i class="fa fa-user me-1"></i>Patient Details</span></div>' +
-            '        <div class="p-3">' +
-            '          <div class="pay-row mb-2"><span class="lbl">Patient</span><span class="val">—</span></div>' +
-            '          <div class="pay-row mb-2"><span class="lbl">Visit ID</span><span class="val">#' + resp.visit_id + '</span></div>' +
-            '          <div class="pay-row mb-2"><span class="lbl">Amount (' + currency + ')</span><span class="val"><strong>' + amount + '</strong></span></div>' +
-            '        </div>' +
-            '      </div>' +
-            '    </div>' +
-            '    <div class="col-md-5">' +
-            '      <div class="sh-form-card h-100 mb-0">' +
-            '        <div class="sh-card-header"><span class="sh-card-header-title"><i class="fa fa-qrcode me-1"></i>QR Payment</span></div>' +
-            '        <div class="p-3 text-center">' +
-            '          <div class="sh-pay-summary mb-3"><div class="pay-row"><span class="lbl">Payment Amount</span><span class="val">' + currency + ' ' + amount + '</span></div></div>' +
-            '          <div id="qr-display" class="mb-3">' +
-            '            <img id="qr-image" src="' + resp.qr_code_image + '" alt="QR Code" style="max-width: 240px; max-height: 240px; border: 1px solid #ddd; padding: 8px; background: #fff;" onerror="this.style.display=\'none\'; document.getElementById(\'qr-fallback\').style.display=\'block\';">' +
-            '            <div id="qr-fallback" style="display:none;"><div class="alert alert-info"><i class="fa fa-info-circle me-1"></i> QR image unavailable. <br><a href="' + resp.qr_short_url + '" target="_blank">Open QR link</a></div></div>' +
-            '          </div>' +
-            '          <div id="check-status" class="mb-3 text-muted small"></div>' +
-            '          <div class="sh-pay-actions">' +
-            '            <button type="button" id="btn-check-payment" class="btn btn-primary" data-visit-id="' + resp.visit_id + '" data-verify-url="' + '<?php echo base_url('admin/patientflow/verify_qr_payment/'); ?>' + resp.visit_id + '" data-interval="5000" data-max-attempts="12"><i class="fa fa-search me-1"></i>Check Payment</button>' +
-            '            <a href="' + '<?php echo base_url('admin/patientflow/pay?ref='); ?>' + '" target="_blank" class="btn btn-outline-secondary"><i class="fa fa-credit-card me-1"></i>Pay with Razorpay Checkout</a>' +
-            '            <button type="button" data-bs-dismiss="modal" class="btn btn-light"><i class="fa fa-chevron-left me-1"></i>Close</button>' +
-            '          </div>' +
-            '        </div>' +
-            '      </div>' +
-            '    </div>' +
+            '<div class="container-fluid px-2 py-2 text-center">' +
+            '  <div class="mb-3">' +
+            '    <div class="pay-row"><span class="lbl">Amount (' + currency + ')</span><span class="val fw-bold fs-4">' + currency + ' ' + amount + '</span></div>' +
+            '  </div>' +
+            '  <div id="qr-display" class="mb-3">' +
+            '    <img id="qr-image" src="' + resp.qr_code_image + '" alt="QR Code" style="height: 550px; max-width: 100%; border: 1px solid #ddd; padding: 12px; background: #fff;" onerror="this.style.display=\'none\'; document.getElementById(\'qr-fallback\').style.display=\'block\';">' +
+            '    <div id="qr-fallback" style="display:none;"><div class="alert alert-info"><i class="fa fa-info-circle me-1"></i> QR image unavailable. <br><a href="' + resp.qr_short_url + '" target="_blank">Open QR link</a></div></div>' +
+            '  </div>' +
+            '  <div id="check-status" class="mb-3 text-muted small"></div>' +
+            '  <div class="sh-pay-actions mt-4">' +
+            '    <button type="button" id="btn-check-payment" class="btn btn-primary w-100 mb-2" data-visit-id="' + resp.visit_id + '" data-verify-url="' + '<?php echo base_url('admin/patientflow/verify_qr_payment/'); ?>' + resp.visit_id + '" data-interval="5000" data-max-attempts="12"><i class="fa fa-search me-1"></i>Check Payment</button>' +
             '  </div>' +
             '</div>';
         $body.html(html);
-    }).fail(function () {
+    },
+    error: function () {
         $body.html('<div class="text-center py-4 text-danger"><i class="fa fa-exclamation-circle fa-2x mb-2"></i><div class="text-danger small">Failed to load QR code.</div></div>');
-    });
+    }
 });
+
+/* QR Payment Check Payment handler (modal context) */
+$(document).on('click', '#btn-check-payment', function () {
+    var $btn = $(this);
+    if ($btn.prop('disabled')) { return; }
+    var visitId = $btn.data('visit-id');
+    var verifyUrl = $btn.data('verify-url');
+    var interval = parseInt($btn.data('interval')) || 5000;
+    var maxAttempts = parseInt($btn.data('max-attempts')) || 12;
+    var attempts = 0;
+    var timer = null;
+    var $status = $('#check-status');
+
+    function startPolling() {
+        $btn.prop('disabled', true).find('i').addClass('fa-spin');
+        checkOnce();
+        timer = setInterval(checkOnce, interval);
+    }
+
+    function stopPolling() {
+        if (timer) { clearInterval(timer); timer = null; }
+        $btn.prop('disabled', false).find('i').removeClass('fa-spin');
+    }
+
+    function checkOnce() {
+        attempts++;
+        $.ajax({
+            url: verifyUrl,
+            type: 'get',
+            dataType: 'json',
+            success: function (res) {
+                if (res && res.paid === true) {
+                    stopPolling();
+                    $status.removeClass('text-muted text-warning').addClass('text-success')
+                        .html('<i class="fa fa-check-circle me-1"></i>' + (res.message || 'Payment verified.'));
+                    $btn.prop('disabled', true);
+                    setTimeout(function () {
+                        window.location.assign('<?php echo base_url('admin/patientflow'); ?>?paid=1');
+                    }, 1500);
+                } else if (res && res.status === false) {
+                    stopPolling();
+                    $status.removeClass('text-muted text-success').addClass('text-warning')
+                        .html('<i class="fa fa-exclamation-triangle me-1"></i>' + (res.message || 'Verification failed.'));
+                } else {
+                    $status.removeClass('text-success text-warning').addClass('text-muted')
+                        .html('<i class="fa fa-clock me-1"></i>' + (res && res.message ? res.message : 'Waiting for payment...'));
+                    if (attempts >= maxAttempts) {
+                        stopPolling();
+                        $status.removeClass('text-muted').addClass('text-warning')
+                            .html('<i class="fa fa-exclamation-triangle me-1"></i> Payment not received yet. Try again or use Razorpay Checkout.');
+                    }
+                }
+            },
+            error: function () {
+                if (attempts >= maxAttempts) {
+                    stopPolling();
+                    $status.removeClass('text-muted').addClass('text-warning')
+                        .html('<i class="fa fa-exclamation-triangle me-1"></i> Could not verify payment.');
+                }
+            }
+        });
+    }
+
+    $btn.on('click', function () {
+        if ($btn.prop('disabled')) return;
+        startPolling();
+    });
+
+    startPolling();
+});
+
+});  // close pf-open-qr-modal handler
 
 </script>
 
