@@ -110,6 +110,8 @@ defined('BASEPATH') or exit('No direct script access allowed');
                         <?php if (!empty($visit->ct_additional_note)): ?><tr><th style="width:30%"><?php echo $this->lang->line('additional_note') ?: 'Additional Note'; ?></th><td><?php echo htmlspecialchars((string) $visit->ct_additional_note); ?></td></tr><?php endif; ?>
                         <?php if (!empty($visit->ct_previous_treatment)): ?><tr><th style="width:30%"><?php echo $this->lang->line('previous_treatment') ?: 'Previous Treatment'; ?></th><td><?php echo htmlspecialchars((string) $visit->ct_previous_treatment); ?></td></tr><?php endif; ?>
                         <?php if (!empty($visit->ct_programme_suggestion)): ?><tr><th style="width:30%"><?php echo $this->lang->line('programme_suggestion') ?: 'Programme Suggestion'; ?></th><td><?php echo htmlspecialchars((string) $visit->ct_programme_suggestion); ?></td></tr><?php endif; ?>
+                        <?php if (!empty($visit->reason)): ?><tr><th style="width:30%"><?php echo $this->lang->line('prescription_reason') ?: 'Prescription Reason'; ?></th><td><?php echo nl2br(htmlspecialchars((string) $visit->reason)); ?></td></tr><?php endif; ?>
+                        <?php if (!empty($visit->reason_fx_e)): ?><tr><th style="width:30%"><?php echo $this->lang->line('prescription_reason_fx_e') ?: 'Reason for FX / E Series Medicines'; ?></th><td><?php echo nl2br(htmlspecialchars((string) $visit->reason_fx_e)); ?></td></tr><?php endif; ?>
                     </table>
                     <?php endif; ?>
 

@@ -265,10 +265,13 @@ class Patientflow_model extends CI_Model
         // Add reason and broad_area_series columns to patient_flow_visits for prescription tracking
         if ($this->db->table_exists('patient_flow_visits')) {
             if (!$this->db->field_exists('reason', 'patient_flow_visits')) {
-                $this->db->query("ALTER TABLE `patient_flow_visits` ADD COLUMN `reason` VARCHAR(255) NULL DEFAULT NULL COMMENT 'Reason for prescribing FX/E medicines' AFTER `is_active`");
+                $this->db->query("ALTER TABLE `patient_flow_visits` ADD COLUMN `reason` VARCHAR(255) NULL DEFAULT NULL COMMENT 'Reason for prescribing medicines' AFTER `is_active`");
+            }
+            if (!$this->db->field_exists('reason_fx_e', 'patient_flow_visits')) {
+                $this->db->query("ALTER TABLE `patient_flow_visits` ADD COLUMN `reason_fx_e` VARCHAR(255) NULL DEFAULT NULL COMMENT 'Reason for prescribing FX/E medicines' AFTER `reason`");
             }
             if (!$this->db->field_exists('broad_area_series', 'patient_flow_visits')) {
-                $this->db->query("ALTER TABLE `patient_flow_visits` ADD COLUMN `broad_area_series` VARCHAR(100) NULL DEFAULT NULL COMMENT 'Selected broad area series code' AFTER `reason`");
+                $this->db->query("ALTER TABLE `patient_flow_visits` ADD COLUMN `broad_area_series` VARCHAR(100) NULL DEFAULT NULL COMMENT 'Selected broad area series code' AFTER `reason_fx_e`");
             }
         }
 
@@ -5941,7 +5944,8 @@ class Patientflow_model extends CI_Model
         $saved = 0;
         $skipped = 0;
         $hasUniversal = false;
-        $universalReason = '';
+        $reasonGeneral = '';
+        $reasonFXE = '';
         $broadAreaSeries = trim((string) $broad_area_series);
         foreach ($medicines as $m) {
             $medicine_id = (int) ($m['medicine_id'] ?? 0);
@@ -5957,7 +5961,11 @@ class Patientflow_model extends CI_Model
             if ($is_fx || $is_e) {
                 $hasUniversal = true;
                 if ($reason !== '') {
-                    $universalReason = $reason;
+                    $reasonFXE = $reason;
+                }
+            } else {
+                if ($reason !== '') {
+                    $reasonGeneral = $reason;
                 }
             }
             // FX/E medicines require a prescribing reason.
@@ -6013,9 +6021,16 @@ class Patientflow_model extends CI_Model
             $this->db->where('visit_id', $visit_id)->where('is_active', 1)
                 ->update('patient_flow_prescription', array('is_active' => 0, 'updated_by' => $updated_by, 'updated_at' => $now));
         }
-        // Save reason and broad_area_series on the visit record if any FX/E medicine was prescribed
-        if ($hasUniversal && $universalReason !== '') {
-            $this->db->where('id', $visit_id)->update('patient_flow_visits', array('reason' => $universalReason));
+        // Save reason and broad_area_series on the visit record.
+        $visitUpdate = array();
+        if ($reasonGeneral !== '') {
+            $visitUpdate['reason'] = $reasonGeneral;
+        }
+        if ($hasUniversal && $reasonFXE !== '') {
+            $visitUpdate['reason_fx_e'] = $reasonFXE;
+        }
+        if (!empty($visitUpdate)) {
+            $this->db->where('id', $visit_id)->update('patient_flow_visits', $visitUpdate);
         }
         if ($broadAreaSeries !== '') {
             $this->db->where('id', $visit_id)->update('patient_flow_visits', array('broad_area_series' => $broadAreaSeries));

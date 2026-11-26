@@ -760,8 +760,10 @@ if (!function_exists('pf_ct_age_label')) {
                                         foreach (array('ct_sex', 'ct_primary_concern', 'ct_concern_duration', 'ct_primary_system', 'ct_dominant_nature', 'ct_bod1', 'ct_fsh1', 'ct_nos1', 'ct_constitution_code', 'ct_assessment_certainty', 'ct_status', 'ct_tissue_structure', 'ct_report_info', 'ct_review_reason', 'ct_secondary_concerns', 'ct_additional_note', 'ct_previous_treatment', 'ct_programme_suggestion', 'ct_programme_id', 'ct_purpose', 'ct_indication') as $pf_ct_n) {
                                            $pf_ct_arr[$pf_ct_n] = isset($v->$pf_ct_n) ? $v->$pf_ct_n : null;
                                        }
-                                       $pf_ct_arr['broad_area_series'] = isset($v->broad_area_series) ? $v->broad_area_series : null;
-                                       $pf_ct_json = htmlspecialchars(json_encode($pf_ct_arr), ENT_QUOTES);
+                                        $pf_ct_arr['broad_area_series'] = isset($v->broad_area_series) ? $v->broad_area_series : null;
+                                        $pf_ct_arr['reason'] = isset($v->reason) ? $v->reason : null;
+                                        $pf_ct_arr['reason_fx_e'] = isset($v->reason_fx_e) ? $v->reason_fx_e : null;
+                                        $pf_ct_json = htmlspecialchars(json_encode($pf_ct_arr), ENT_QUOTES);
                                      // May this row's case taking be edited? Needs the
                                      // patient_flow / can_edit privilege, an existing case
                                      // taking, and either superadmin status OR ownership of
@@ -801,6 +803,7 @@ if (!function_exists('pf_ct_age_label')) {
                                                                                           data-ct="<?php echo $pf_ct_json; ?>"
                                              data-broad-area-series="<?php echo addslashes((string) ($v->broad_area_series ?? '')); ?>"
                                              data-reason="<?php echo addslashes((string) ($v->reason ?? '')); ?>"
+                                             data-reason-fx-e="<?php echo addslashes((string) ($v->reason_fx_e ?? '')); ?>"
                                              title="<?php echo $this->lang->line('medicine_selection') ?: 'Medicine Selection'; ?>"
 >
                                         <i class="fas fa-prescription"></i> &nbsp;<?php echo $this->lang->line('medicine_selection') ?: 'Medicine Selection'; ?>
@@ -2588,10 +2591,20 @@ foreach ($pf_ct_slots as $pf_key => $pf_slot) {
                             </div>
                             <div class="sh-form-card d-none" id="pf_ms_reason_wrapper">
                                 <div class="sh-card-header">
-                                    <span class="sh-card-header-title"><i class="fa fa-user"></i> Reason</span>
+                                    <span class="sh-card-header-title"><i class="fa fa-comment"></i> Reason to Change</span>
                                 </div>
                                 <div class="sh-card-body">
-                                    <textarea class="form-control form-control-sm mb-2" id="pf_ms_reason" rows="2" placeholder="Reason for prescribing FX/E medicine..."></textarea>
+                                    <textarea class="form-control form-control-sm mb-2" id="pf_ms_reason" rows="2" placeholder="Please enter a reason for selecting this medicine..."></textarea>
+                                    <div class="form-text small text-muted">Required when you select or change any medicine.</div>
+                                </div>
+                            </div>
+                            <div class="sh-form-card d-none" id="pf_ms_reason_fx_e_wrapper">
+                                <div class="sh-card-header">
+                                    <span class="sh-card-header-title"><i class="fa fa-exclamation-triangle"></i> Reason to Prescribe FX/E Medicine</span>
+                                </div>
+                                <div class="sh-card-body">
+                                    <textarea class="form-control form-control-sm mb-2" id="pf_ms_reason_fx_e" rows="2" placeholder="Reason for prescribing FX/E series medicine..."></textarea>
+                                    <div class="form-text small text-muted">Required when you select any FX or E series medicine.</div>
                                 </div>
                             </div>
                         </div>
@@ -3319,7 +3332,8 @@ $(document).on('click', '#pf_ctv_manage_meds', function () {
             patientUuid: pfCtViewCtx.patientUuid,
             ct: pfCtViewCtx.ct,
             storedSeries: pfCtViewCtx.ct.broad_area_series || '',
-            storedReason: ''
+            storedReason: pfCtViewCtx.ct.reason || '',
+            storedReasonFxE: pfCtViewCtx.ct.reason_fx_e || ''
         });
     }, 250);
 });
@@ -3600,32 +3614,54 @@ function pfMsFetchBySeries() {
     });
 }
 
-// Toggle reason textarea visibility when any FX/E medicine checkbox is checked/unchecked
+// Toggle reason textarea visibility when any medicine checkbox is checked/unchecked
 $(document).on('change', '#pf_med_select_table_rows input.pf_med_checkbox', function () {
+    var hasAnyChecked = $('#pf_med_select_table_rows input.pf_med_checkbox:checked').length > 0;
     var hasUniversal = $('#pf_med_select_table_rows input.pf_med_checkbox:checked').filter(function () {
         return $(this).data('series') === 'FX' || $(this).data('series') === 'E';
     }).length > 0;
-    if (hasUniversal) {
+
+    // General reason to change - show when any medicine is checked
+    if (hasAnyChecked) {
         $('#pf_ms_reason_wrapper').removeClass('d-none');
         $('#pf_ms_reason').prop('required', true);
     } else {
         $('#pf_ms_reason_wrapper').addClass('d-none');
         $('#pf_ms_reason').prop('required', false).val('');
     }
+
+    // FX/E specific reason - show only when FX/E medicine is checked
+    if (hasUniversal) {
+        $('#pf_ms_reason_fx_e_wrapper').removeClass('d-none');
+        $('#pf_ms_reason_fx_e').prop('required', true);
+    } else {
+        $('#pf_ms_reason_fx_e_wrapper').addClass('d-none');
+        $('#pf_ms_reason_fx_e').prop('required', false).val('');
+    }
 });
 
-// Also toggle on modal open if pre-checked medicines include FX/E
+// Also toggle on modal open if pre-checked medicines exist
 $(document).on('shown.bs.modal', '#pfMedSelectModal', function () {
     setTimeout(function () {
+        var hasAnyChecked = $('#pf_med_select_table_rows input.pf_med_checkbox:checked').length > 0;
         var hasUniversal = $('#pf_med_select_table_rows input.pf_med_checkbox:checked').filter(function () {
             return $(this).data('series') === 'FX' || $(this).data('series') === 'E';
         }).length > 0;
-        if (hasUniversal) {
+
+        if (hasAnyChecked) {
             $('#pf_ms_reason_wrapper').removeClass('d-none');
             $('#pf_ms_reason').prop('required', true);
         } else {
             $('#pf_ms_reason_wrapper').addClass('d-none');
             $('#pf_ms_reason').prop('required', false).val('');
+        }
+
+        if (hasUniversal) {
+            $('#pf_ms_reason_fx_e_wrapper').removeClass('d-none');
+            $('#pf_ms_reason_fx_e').prop('required', true);
+        } else {
+            $('#pf_ms_reason_fx_e_wrapper').addClass('d-none');
+            $('#pf_ms_reason_fx_e').prop('required', false).val('');
         }
     }, 100);
 });
@@ -3678,10 +3714,16 @@ function pfOpenMedSelect(opts) {
     // Stored visit-level broad area series + FX/E reason (if previously saved).
     var pfStoredSeries = opts.storedSeries || '';
     var pfStoredReason = opts.storedReason || '';
+    var pfStoredReasonFxE = opts.storedReasonFxE || '';
     if (pfStoredReason !== '') {
         $('#pf_ms_reason').val(pfStoredReason);
         $('#pf_ms_reason_wrapper').removeClass('d-none');
         $('#pf_ms_reason').prop('required', true);
+    }
+    if (pfStoredReasonFxE !== '') {
+        $('#pf_ms_reason_fx_e').val(pfStoredReasonFxE);
+        $('#pf_ms_reason_fx_e_wrapper').removeClass('d-none');
+        $('#pf_ms_reason_fx_e').prop('required', true);
     }
 
     $('#pf_ms_visit_id').val(visitId);
@@ -3759,7 +3801,8 @@ $(document).on('click', '.pf-med-btn', function () {
         patientUuid: $(this).data('patient-uuid'),
         ct: pfCtParse(this),
         storedSeries: $(this).data('broad-area-series') || '',
-        storedReason: $(this).data('reason') || ''
+        storedReason: $(this).data('reason') || '',
+        storedReasonFxE: $(this).data('reason-fx-e') || ''
     });
 });
 
@@ -3777,12 +3820,10 @@ $(document).on('click', '#pf_ms_save', function () {
         return;
     }
     var checked = [];
-    var hasUniversal = false;
     var broadAreaSeries = $('#pf_ms_broad_series').val();
     $('#pf_med_select_table_rows input.pf_med_checkbox:checked').each(function () {
         var $cb = $(this);
         var series = $cb.data('series');
-        if (series === 'FX' || series === 'E') { hasUniversal = true; }
         checked.push({
             medicine_id: parseInt($cb.data('med-id')),
             series: series,
@@ -3795,18 +3836,32 @@ $(document).on('click', '#pf_ms_save', function () {
         errorMsg('Please select at least one medicine.');
         return;
     }
-    // If any FX/E medicine is checked, reason is required.
-    if (hasUniversal) {
-        var reason = $('#pf_ms_reason').val().trim();
-        if (reason === '') {
-            errorMsg('Please enter a reason for prescribing FX/E medicine.');
-            $('#pf_ms_reason').focus();
-            return;
-        }
-        checked.forEach(function (c) {
-            c.reason = reason;
-        });
+    // General reason to change - required when any medicine is checked
+    var reasonGeneral = $('#pf_ms_reason').val().trim();
+    if (reasonGeneral === '') {
+        errorMsg('Please enter a reason for prescribing medicine.');
+        $('#pf_ms_reason').focus();
+        return;
     }
+    // FX/E specific reason - required when any FX/E medicine is checked
+    var hasUniversal = false;
+    var reasonFXE = $('#pf_ms_reason_fx_e').val().trim();
+    checked.forEach(function (c) {
+        c.reason = reasonGeneral;
+        if (c.series === 'FX' || c.series === 'E') {
+            hasUniversal = true;
+        }
+    });
+    if (hasUniversal && reasonFXE === '') {
+        errorMsg('Please enter a reason for prescribing FX/E medicine.');
+        $('#pf_ms_reason_fx_e').focus();
+        return;
+    }
+    checked.forEach(function (c) {
+        if (c.series === 'FX' || c.series === 'E') {
+            c.reason = reasonFXE;
+        }
+    });
     $('#pf_ms_save').prop('disabled', true).html('<i class="fa fa-spinner fa-spin me-1"></i> Saving...');
     $.post('<?php echo site_url('admin/patientflow/save_prescriptions_bulk'); ?>', {
         visit_id: visitId,
