@@ -5335,6 +5335,12 @@ class Patientflow_model extends CI_Model
                 'medicine_id' => (int) $r->medicine_id,
                 'code' => (string) ($r->mcode ?: $r->code),
                 'identity' => (string) ($r->mident ?: ''),
+                'patient_dose' => (string) ($r->patient_dose ?: ''),
+                'route_method' => (string) ($r->route_method ?: ''),
+                'timing' => (string) ($r->timing ?: ''),
+                'frequency' => (string) ($r->frequency ?: ''),
+                'duration_text' => (string) ($r->duration_text ?: ''),
+                'dispensing_qty_ml' => ($r->dispensing_qty_ml !== null && $r->dispensing_qty_ml !== '') ? (string) $r->dispensing_qty_ml : '',
                 'series' => 'F',
                 'variant' => 1,
                 'source' => 'F-series mapping',
@@ -5363,6 +5369,12 @@ class Patientflow_model extends CI_Model
                     'medicine_id' => (int) $r->medicine_id,
                     'code' => (string) ($r->mcode ?: $r->code),
                     'identity' => (string) ($r->mident ?: ''),
+                    'patient_dose' => (string) ($r->patient_dose ?: ''),
+                    'route_method' => (string) ($r->route_method ?: ''),
+                    'timing' => (string) ($r->timing ?: ''),
+                    'frequency' => (string) ($r->frequency ?: ''),
+                    'duration_text' => (string) ($r->duration_text ?: ''),
+                    'dispensing_qty_ml' => ($r->dispensing_qty_ml !== null && $r->dispensing_qty_ml !== '') ? (string) $r->dispensing_qty_ml : '',
                     'series' => $series,
                     'variant' => 1,
                     'source' => 'Daily mapping (' . $session . ')',
@@ -5430,6 +5442,33 @@ class Patientflow_model extends CI_Model
                     'series' => 'E',
                     'variant' => 1,
                     'source' => 'Universal E medicine',
+                );
+            }
+        }
+
+        // 5) Saved prescriptions for this visit — so already-prescribed medicines
+        //    appear in the fetch list even when they are not in the mapping tables.
+        if ($this->db->table_exists('patient_flow_prescription') && $visit_id > 0) {
+            $this->db->select('p.medicine_id, p.series, p.variant, m.code AS mcode, m.medicine_identity AS mident,
+                m.patient_dose, m.route_method, m.timing, m.frequency, m.duration_text, m.dispensing_qty_ml');
+            $this->db->from('patient_flow_prescription p');
+            $this->db->join('medicine_master m', 'm.id = p.medicine_id', 'left');
+            $this->db->where('p.visit_id', $visit_id)->where('p.is_active', 1);
+            $pres_rows = $this->db->get()->result();
+            foreach ($pres_rows as $r) {
+                $medicines[] = array(
+                    'medicine_id' => (int) $r->medicine_id,
+                    'code' => (string) ($r->mcode ?: $r->code),
+                    'identity' => (string) ($r->mident ?: ''),
+                    'patient_dose' => (string) ($r->patient_dose ?: ''),
+                    'route_method' => (string) ($r->route_method ?: ''),
+                    'timing' => (string) ($r->timing ?: ''),
+                    'frequency' => (string) ($r->frequency ?: ''),
+                    'duration_text' => (string) ($r->duration_text ?: ''),
+                    'dispensing_qty_ml' => ($r->dispensing_qty_ml !== null && $r->dispensing_qty_ml !== '') ? (string) $r->dispensing_qty_ml : '',
+                    'series' => strtoupper(trim((string) ($r->series ?: ''))),
+                    'variant' => (int) ($r->variant ?: 1),
+                    'source' => 'Saved prescription',
                 );
             }
         }
@@ -5656,7 +5695,8 @@ class Patientflow_model extends CI_Model
         $results = array();
         if (in_array($stage_code, array('Q1S1','Q1S2'), true)
             && $this->db->table_exists('formulation_early_mapping')) {
-            $this->db->select('m.*, med.code AS mcode, med.medicine_identity AS mident, med.series AS series');
+            $this->db->select('m.*, med.code AS mcode, med.medicine_identity AS mident, med.series AS series,
+                med.patient_dose, med.route_method, med.timing, med.frequency, med.duration_text, med.dispensing_qty_ml');
             $this->db->from('formulation_early_mapping m');
             $this->db->join('medicine_master med', 'med.id = m.medicine_id', 'left');
             $this->db->where('m.stage_id', $stage_id)->where('m.session', $session);
@@ -5668,7 +5708,8 @@ class Patientflow_model extends CI_Model
         }
         elseif ($this->db->table_exists('formulation_universal_mapping')) {
             $rows = $this->db
-                ->select('m.*, med.code AS mcode, med.medicine_identity AS mident, med.series AS series')
+                ->select('m.*, med.code AS mcode, med.medicine_identity AS mident, med.series AS series,
+                    med.patient_dose, med.route_method, med.timing, med.frequency, med.duration_text, med.dispensing_qty_ml')
                 ->from('formulation_universal_mapping m')
                 ->join('medicine_master med', 'med.id = m.medicine_id', 'left')
                 ->where('m.stage_id', $stage_id)->where('m.session', $session)
@@ -6147,27 +6188,71 @@ class Patientflow_model extends CI_Model
                 'variant' => 1,
             );
         }
-        // 2) Locked daily medicines for this stage, filtered by the series'
-        //    pair_group. Exclude FA, FX, E series (auto-save covers F/FB/FC/FD).
-        $allowed_pair_groups = array();
-        if ($this->db->table_exists('broad_area_series')) {
-            $srow = $this->db->where('code', $broad_area_series)->get('broad_area_series')->row();
-            if ($srow && $srow->pair_group !== null && $srow->pair_group !== '') {
-                $allowed_pair_groups[] = (string) $srow->pair_group;
-            }
-        }
-        if (!empty($allowed_pair_groups)) {
-            $daily_rows = $this->get_daily_medicines_by_stage($stage_id, 'Morning', $allowed_pair_groups);
-            foreach ($daily_rows as $r) {
-                $series = strtoupper(trim((string) ($r->series ?: '')));
-                if (in_array($series, array('FA', 'FX', 'E'), true)) {
-                    continue;
+        // 2) Daily medicines for FA/FB (early stages Q1S1/Q1S2) and FC/FD (universal stages Q1S3+).
+        //    FX and E series are never auto-saved — excluded here and at the top of this function.
+        $stage_code = strtoupper((string) ($stage['stage_code'] ?: ''));
+
+        if (in_array($stage_code, array('Q1S1', 'Q1S2'), true)) {
+            // FA/FB from Early Mapping — Morning and Evening sessions.
+            // Derive pair_group from broad area series (e.g., LKO1/LKO2 → LKO).
+            $pair_group = '';
+            if ($broad_area_series !== '' && $this->db->table_exists('broad_area_series')) {
+                $srow = $this->db->where('code', $broad_area_series)->get('broad_area_series')->row();
+                if ($srow && !empty($srow->pair_group)) {
+                    $pair_group = (string) $srow->pair_group;
+                } else {
+                    // Fallback: strip trailing digits from series code.
+                    $pair_group = preg_replace('/\d+$/', '', $broad_area_series);
                 }
-                $medicines[] = array(
-                    'medicine_id' => (int) $r->medicine_id,
-                    'series' => $series,
-                    'variant' => 1,
-                );
+            }
+
+            if ($pair_group !== '' && $this->db->table_exists('formulation_early_mapping')) {
+                foreach (array('Morning', 'Evening') as $session) {
+                    $early_rows = $this->db
+                        ->select('m.*, med.code AS mcode, med.medicine_identity AS mident, med.series AS series')
+                        ->from('formulation_early_mapping m')
+                        ->join('medicine_master med', 'med.id = m.medicine_id', 'left')
+                        ->where('m.stage_id', $stage_id)
+                        ->where('m.session', $session)
+                        ->where_in('m.pair_group', array($pair_group))
+                        ->get()->result();
+                    foreach ($early_rows as $r) {
+                        $series = strtoupper(trim((string) ($r->series ?: '')));
+                        if (!in_array($series, array('FA', 'FB'), true)) {
+                            continue;
+                        }
+                        $medicines[] = array(
+                            'medicine_id' => (int) $r->medicine_id,
+                            'series' => $series,
+                            'variant' => 1,
+                        );
+                    }
+                }
+            }
+        } else {
+            // FC/FD from Universal Mapping — Morning and Evening sessions.
+            // No pair_group filter: universal mapping applies to all broad area series.
+            if ($this->db->table_exists('formulation_universal_mapping')) {
+                foreach (array('Morning', 'Evening') as $session) {
+                    $universal_rows = $this->db
+                        ->select('m.*, med.code AS mcode, med.medicine_identity AS mident, med.series AS series')
+                        ->from('formulation_universal_mapping m')
+                        ->join('medicine_master med', 'med.id = m.medicine_id', 'left')
+                        ->where('m.stage_id', $stage_id)
+                        ->where('m.session', $session)
+                        ->get()->result();
+                    foreach ($universal_rows as $r) {
+                        $series = strtoupper(trim((string) ($r->series ?: '')));
+                        if (!in_array($series, array('FC', 'FD'), true)) {
+                            continue;
+                        }
+                        $medicines[] = array(
+                            'medicine_id' => (int) $r->medicine_id,
+                            'series' => $series,
+                            'variant' => 1,
+                        );
+                    }
+                }
             }
         }
         // Deduplicate by medicine_id (keep first occurrence).

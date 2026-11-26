@@ -2154,7 +2154,8 @@ foreach ($pf_ct_slots as $pf_key => $pf_slot) {
                                                 <select class="form-select select2 w-100" id="pf_ct_primary_system" name="pf_ct_primary_system" required>
                                                     <option value="">Select system / area</option>
                                                     <?php foreach ($broad_area_rules as $ps) {
-                                                        echo '<option value="' . htmlspecialchars((string) $ps->concern_pattern) . '">' . htmlspecialchars((string) $ps->concern_pattern) . '</option>';
+                                                        $app = trim((string) ($ps->applicability ?? ''));
+                                                        echo '<option value="' . htmlspecialchars((string) $ps->concern_pattern) . '" data-applicability="' . htmlspecialchars($app) . '">' . htmlspecialchars((string) $ps->concern_pattern) . '</option>';
                                                     }
                                                     ?>
                                                     <!-- <option value="Internal organs">Internal organs</option>
@@ -2198,9 +2199,9 @@ foreach ($pf_ct_slots as $pf_key => $pf_slot) {
                                                     <option value="review"><?php echo $this->lang->line('case_review') ?: 'Review'; ?></option>
                                                 </select></div>
 
-                                            <div class="col-md-6"><label class="form-label form-label-sm">Purpose <small class="text-muted">(from medicine master)</small></label>
+                                            <div class="col-md-6"><label class="form-label form-label-sm">Purpose <small class="text-muted"></small></label>
                                                 <select class="form-select" id="pf_ct_purpose"><option value="">Select Purpose</option></select></div>
-                                            <div class="col-md-6"><label class="form-label form-label-sm">Indication <small class="text-muted">(from medicine master)</small></label>
+                                            <div class="col-md-6"><label class="form-label form-label-sm">Indication <small class="text-muted"></small></label>
                                                 <select class="form-select" id="pf_ct_indication"><option value="">Select Indication</option></select></div>
 
                                             <div class="col-md-6"><label class="form-label form-label-sm">Tissue / structure <small class="text-muted">(when relevant to broad area)</small></label>
@@ -2353,7 +2354,7 @@ foreach ($pf_ct_slots as $pf_key => $pf_slot) {
                                     </div>
                                 </div>
 
-                                <div class="sh-form-card p-0">
+                                <div class="sh-form-card p-0" style="display:none;">
                                     <div class="sh-card-header">
                                         <span class="sh-card-header-title"><i class="fa fa-user"></i> Patient History</span>
                                     </div>
@@ -2428,6 +2429,8 @@ foreach ($pf_ct_slots as $pf_key => $pf_slot) {
                                 <tr><th>Face Type</th><td id="pf_ctv_ct_fsh1"></td></tr>
                                 <tr><th>Nose Type</th><td id="pf_ctv_ct_nos1"></td></tr>
                                 <tr><th>Assessment certainty</th><td id="pf_ctv_ct_assessment_certainty"></td></tr>
+                                <tr><th>Reason For Medicine Change</th><td id="pf_ctv_reason"></td></tr>
+                                <tr><th>FX/E Prescription Reason</th><td id="pf_ctv_reason_fx_e"></td></tr>
                             </table>
                                 </div>
                             </div>
@@ -2456,28 +2459,29 @@ foreach ($pf_ct_slots as $pf_key => $pf_slot) {
                                 </div>
                             </div>
                         </div>
-                    </div>
-                    <div class="col-12 mt-2">
-                        <div class="sh-form-card">
-                            <div class="sh-card-header">
-                                <span class="sh-card-header-title"><i class="fas fa-prescription-bottle-alt"></i> Medicines Allotted</span>
-                            </div>
-                            <div class="sh-card-body">
-                                <table class="table table-bordered table-sm mb-0">
-                                    <thead>
-                                        <tr>
-                                            <th style="width:40%">Medicine</th>
-                                            <th>Series</th>
-                                            <th>Variant</th>
-                                            <th>Pharmacy</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="pf_ctv_medicines">
-                                        <tr><td colspan="4" class="text-muted text-center">Loading…</td></tr>
-                                    </tbody>
-                                </table>
+                        <div class="col-12 mt-2">
+                            <div class="sh-form-card">
+                                <div class="sh-card-header">
+                                    <span class="sh-card-header-title"><i class="fas fa-prescription-bottle-alt"></i> Medicines Allotted</span>
+                                </div>
+                                <div class="sh-card-body">
+                                    <table class="table table-bordered table-sm mb-0">
+                                        <thead>
+                                            <tr>
+                                                <th style="width:40%">Medicine</th>
+                                                <th>Series</th>
+                                                <th>Variant</th>
+                                                <th>Pharmacy</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="pf_ctv_medicines">
+                                            <tr><td colspan="4" class="text-muted text-center">Loading…</td></tr>
+                                        </tbody>
+                                    </table>
+                                </div>
                             </div>
                         </div>
+
                     </div>
                 </div>
             </div>
@@ -2585,6 +2589,18 @@ foreach ($pf_ct_slots as $pf_key => $pf_slot) {
                                         <div class="sh-info-item">
                                             <span class="sh-info-label"><i class="fas fa-layer-group"></i> Variant</span>
                                             <span class="sh-info-value" id="pf_ms_variant_badge">&mdash;</span>
+                                        </div>
+                                        <div class="sh-info-item">
+                                            <span class="sh-info-label"><i class="fa fa-file-alt"></i> Purpose</span>
+                                            <span class="sh-info-value" id="pf_ms_pi_purpose">&mdash;</span>
+                                        </div>
+                                        <div class="sh-info-item">
+                                            <span class="sh-info-label"><i class="fa fa-bullseye"></i> Indication</span>
+                                            <span class="sh-info-value" id="pf_ms_pi_indication">&mdash;</span>
+                                        </div>
+                                        <div class="sh-info-item">
+                                            <span class="sh-info-label"><i class="fas fa-layer-group"></i> Stage</span>
+                                            <span class="sh-info-value" id="pf_ms_pi_stage">&mdash;</span>
                                         </div>
                                     </div>
                                 </div>
@@ -3053,12 +3069,46 @@ $(document).on('click', '#pf_ct_broad_resolve', function () {
 $(document).on('change', '#pf_ct_sex, #pf_ct_primary_system, #pf_ct_bod1, #pf_ct_fsh1, #pf_ct_nos1', function () {
     pfCtFetchBroadSeries();
 });
+$(document).on('change', '#pf_ct_sex', pfCtFilterPrimarySystem);
+function pfCtFilterPrimarySystem() {
+    var sex = $('#pf_ct_sex').val() || '';
+    var $sel = $('#pf_ct_primary_system');
+    var $stash = $('#pf_ct_primary_system_stash');
+    if (!$stash.length) {
+        $stash = $('<div id="pf_ct_primary_system_stash" style="display:none;"></div>').appendTo(document.body);
+        $sel.find('option').not('[value=""]').each(function () {
+            $stash.append($(this).clone());
+            $(this).remove();
+        });
+    }
+    var cur = $sel.val() || '';
+    var $ph = $sel.find('option').first().clone();
+    $sel.empty().append($ph);
+    $stash.find('option').each(function () {
+        var $o = $(this);
+        var app = ($o.data('applicability') || '').toString();
+        var show = (app === 'Any')
+            || (sex === 'M' && (app === 'Male/general' || app === 'Male'))
+            || (sex === 'F' && (app === 'Female' || app === 'Female only'));
+        if (show) { $sel.append($o.clone()); }
+    });
+    var $match = $sel.find('option').filter(function () { return $(this).val() === cur; });
+    if (cur !== '' && $match.length) { $sel.val(cur).trigger('change'); } else { $sel.val('').trigger('change'); }
+    if ($sel.hasClass('select2-hidden-accessible')) { $sel.select2('destroy'); }
+    $sel.select2({
+        dropdownParent: $('#pfCaseModal .modal-content'),
+        placeholder: 'Select system / area',
+        allowClear: false,
+        width: '100%'
+    });
+}
 // Input id per posted field; type/description keep their legacy ids.
 function pfCtInputId(name) {
     if (name === 'case_taking_type') { return 'pf_ct_type'; }
     if (name === 'case_taking_description') { return 'pf_ct_desc'; }
     return 'pf_' + name;
 }
+
 function pfCtParse(btn) {
     var ct = $(btn).data('ct') || {};
     if (typeof ct === 'string') { try { ct = JSON.parse(ct); } catch (e) { ct = {}; } }
@@ -3133,6 +3183,7 @@ function pfCtOpenForm(opts) {
         var $el = $('#' + pfCtInputId(key));
         $el.val((v === null || v === undefined) ? '' : v).trigger('change');
     }
+    pfCtFilterPrimarySystem();
     if (!$('#pf_ct_status').val()) { $('#pf_ct_status').val('Open'); } // default workflow status
     $('#pf_ct_notice').addClass('d-none').text('');
     pfCtPreviewCode();
@@ -3235,6 +3286,8 @@ $(document).on('click', '.pf-case-view-btn', function () {
     pfCtPut('pf_ctv_desc', ct.case_taking_description);
     var scalar = ['ct_constitution_code', 'ct_sex', 'ct_primary_concern', 'ct_concern_duration', 'ct_primary_system', 'ct_dominant_nature', 'ct_assessment_certainty', 'ct_status', 'ct_review_reason', 'ct_tissue_structure', 'ct_report_info', 'ct_secondary_concerns', 'ct_additional_note', 'ct_previous_treatment', 'ct_programme_suggestion'];
     for (var i = 0; i < scalar.length; i++) { pfCtPut('pf_ctv_' + scalar[i], ct[scalar[i]]); }
+    pfCtPut('pf_ctv_reason', ct.reason);
+    pfCtPut('pf_ctv_reason_fx_e', ct.reason_fx_e);
     function pfCtSlot(pfx) {
         var map = pfCtLookup[pfx] || {};
         var val = ct['ct_' + pfx + '1'];
@@ -3272,7 +3325,7 @@ $(document).on('click', '.pf-case-view-btn', function () {
             $('#pf_ctv_manage_meds').addClass('d-none').data('visit', '');
         } else {
             resp.medicines.forEach(function (m) {
-                var medLabel = (m.medicine_identity || m.code || m.medicine_name || m.medicine_id || '—');
+                var medLabel = (m.code || m.medicine_identity || m.medicine_name || m.medicine_id || '—');
                 var series = m.series || '—';
                 var variant = m.variant || '—';
                 var pharmacy = m.pharmacy_name || '—';
@@ -3454,6 +3507,7 @@ function pfMsResolveMedicines() {
         var stCode = (data.stage && data.stage.stage_code) ? data.stage.stage_code : '—';
         var stId = (data.stage && data.stage.stage_id) ? data.stage.stage_id : '';
         $('#pf_ms_view_stage').text(stCode);
+        $('#pf_ms_pi_stage').text(stCode);
         $('#pf_ms_stage_id').val(stId);
 
         // Populate Broad Area Series selectbox (do NOT auto-fetch medicines;
@@ -3627,7 +3681,11 @@ $(document).on('change', '#pf_med_select_table_rows input.pf_med_checkbox', func
         $('#pf_ms_reason').prop('required', true);
     } else {
         $('#pf_ms_reason_wrapper').addClass('d-none');
-        $('#pf_ms_reason').prop('required', false).val('');
+        $('#pf_ms_reason').prop('required', false);
+        // Only clear if textarea is empty - preserve pre-filled saved values
+        if ($('#pf_ms_reason').val().trim() === '') {
+            $('#pf_ms_reason').val('');
+        }
     }
 
     // FX/E specific reason - show only when FX/E medicine is checked
@@ -3636,7 +3694,11 @@ $(document).on('change', '#pf_med_select_table_rows input.pf_med_checkbox', func
         $('#pf_ms_reason_fx_e').prop('required', true);
     } else {
         $('#pf_ms_reason_fx_e_wrapper').addClass('d-none');
-        $('#pf_ms_reason_fx_e').prop('required', false).val('');
+        $('#pf_ms_reason_fx_e').prop('required', false);
+        // Only clear if textarea is empty - preserve pre-filled saved values
+        if ($('#pf_ms_reason_fx_e').val().trim() === '') {
+            $('#pf_ms_reason_fx_e').val('');
+        }
     }
 });
 
@@ -3653,7 +3715,11 @@ $(document).on('shown.bs.modal', '#pfMedSelectModal', function () {
             $('#pf_ms_reason').prop('required', true);
         } else {
             $('#pf_ms_reason_wrapper').addClass('d-none');
-            $('#pf_ms_reason').prop('required', false).val('');
+            $('#pf_ms_reason').prop('required', false);
+            // Only clear if textarea is empty - preserve pre-filled saved values
+            if ($('#pf_ms_reason').val().trim() === '') {
+                $('#pf_ms_reason').val('');
+            }
         }
 
         if (hasUniversal) {
@@ -3661,7 +3727,11 @@ $(document).on('shown.bs.modal', '#pfMedSelectModal', function () {
             $('#pf_ms_reason_fx_e').prop('required', true);
         } else {
             $('#pf_ms_reason_fx_e_wrapper').addClass('d-none');
-            $('#pf_ms_reason_fx_e').prop('required', false).val('');
+            $('#pf_ms_reason_fx_e').prop('required', false);
+            // Only clear if textarea is empty - preserve pre-filled saved values
+            if ($('#pf_ms_reason_fx_e').val().trim() === '') {
+                $('#pf_ms_reason_fx_e').val('');
+            }
         }
     }, 100);
 });
@@ -3716,6 +3786,7 @@ function pfOpenMedSelect(opts) {
     var pfStoredReason = opts.storedReason || '';
     var pfStoredReasonFxE = opts.storedReasonFxE || '';
     if (pfStoredReason !== '') {
+        console.log('Pre-filling reason: ' + pfStoredReason);
         $('#pf_ms_reason').val(pfStoredReason);
         $('#pf_ms_reason_wrapper').removeClass('d-none');
         $('#pf_ms_reason').prop('required', true);
@@ -3741,6 +3812,8 @@ function pfOpenMedSelect(opts) {
     $('#pf_ms_pi_allergies').text(p.known_allergies || '—');
     $('#pf_ms_constitution_code').text((ct && ct.ct_constitution_code) ? ct.ct_constitution_code : '—');
     $('#pf_ms_variant_badge').text('—');
+    $('#pf_ms_pi_purpose').text((ct && ct.ct_purpose) ? ct.ct_purpose : '—');
+    $('#pf_ms_pi_indication').text((ct && ct.ct_indication) ? ct.ct_indication : '—');
 
     // Right Column: Display saved Constitution Code and Concern in text
     var concernVal = (ct && ct.ct_primary_concern) ? ct.ct_primary_concern : '';

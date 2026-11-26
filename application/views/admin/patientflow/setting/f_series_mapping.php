@@ -84,7 +84,7 @@
                         <select name="medicine_id" id="pf_fmap_medicine_id" class="form-select" required>
                             <option value="">Select F Medicine</option>
                             <?php 
-                            $f_meds = !empty($medicines_grouped['F']) ? $medicines_grouped['F'] : [];
+                            $f_meds = !empty($f_medicines) ? $f_medicines : [];
                             if (!empty($f_meds)) { 
                                 foreach ($f_meds as $fm) { 
                             ?>

@@ -33,7 +33,7 @@
                         <thead><tr><th>Pair Group</th><th>Stage</th><th>Session</th><th>Medicine</th><th>Status</th><th class="text-end noExport">Action</th></tr></thead>
                         <tbody>
                             <?php if (empty($early_mappings)) { echo '<tr><td colspan="6" class="text-center text-muted">No early mappings.</td></tr>'; } else { foreach ($early_mappings as $em) { ?>
-                            <tr data-id="<?php echo (int) $em->id; ?>">
+                            <tr data-id="<?php echo (int) $em->id; ?>" data-medicine-id="<?php echo (int) $em->medicine_id; ?>">
                                 <td><?php echo htmlspecialchars($em->pair_group); ?></td>
                                 <td><?php echo htmlspecialchars($em->stcode); ?></td>
                                 <td><?php echo htmlspecialchars($em->session); ?></td>
@@ -163,6 +163,7 @@ function openDailyEarlyMappingModal(id) {
     document.getElementById('pf_daily_em_stage_id').value = '';
     document.getElementById('pf_daily_em_medicine_id').value = '';
     document.getElementById('pf_daily_em_status').value = 'Locked';
+    var medicineId = '';
     if (id) {
         var rows = document.querySelectorAll('#pf_daily_early_table tbody tr[data-id]');
         for (var i = 0; i < rows.length; i++) {
@@ -175,11 +176,7 @@ function openDailyEarlyMappingModal(id) {
                 for (var j = 0; j < selStage.options.length; j++) {
                     if (selStage.options[j].text === stageText) { selStage.value = selStage.options[j].value; break; }
                 }
-                var medText = tds[3].textContent.trim();
-                var sel = document.getElementById('pf_daily_em_medicine_id');
-                for (var j = 0; j < sel.options.length; j++) {
-                    if (sel.options[j].text === medText) { sel.value = sel.options[j].value; break; }
-                }
+                medicineId = rows[i].getAttribute('data-medicine-id') || '';
                 document.getElementById('pf_daily_em_status').value = tds[4].textContent.trim();
                 document.getElementById('pf_daily_em_id').value = id;
                 break;
@@ -227,6 +224,8 @@ function openDailyEarlyMappingModal(id) {
         echo "medSel.appendChild(optGrp);\n";
     }
     ?>
+    // Preselect medicine when editing
+    if (medicineId) { medSel.value = medicineId; }
     bootstrap.Modal.getOrCreateInstance(document.getElementById('pfDailyEarlyMappingModal')).show();
 }
 
