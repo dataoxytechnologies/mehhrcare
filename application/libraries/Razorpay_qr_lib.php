@@ -114,6 +114,25 @@ class Razorpay_qr_lib
     }
 
     /**
+     * Fetch payments made on a QR code.
+     * GET /v1/payments/qr_codes/:qr_id/payments
+     */
+    public function fetch_qr_payments($qr_code_id, array $query = array())
+    {
+        if (empty($this->key_id) || empty($this->key_secret)) {
+            return array('success' => false, 'error' => 'Razorpay credentials not configured.');
+        }
+        if (empty($qr_code_id)) {
+            return array('success' => false, 'error' => 'QR code id is required.');
+        }
+
+        $url = $this->base_url . '/' . rawurlencode((string) $qr_code_id) . '/payments';
+        if (!empty($query)) {
+            $url .= '?' . http_build_query($query);
+        }
+        return $this->request('GET', $url, null, false);
+    }
+    /**
      * Low-level authenticated request to Razorpay API.
      */
     private function request($method, $url, ?array $body = null, $json = true)

@@ -2127,61 +2127,175 @@ class Patientflow extends Admin_Controller
      * Polls GET /v1/qr_codes/:id and marks the visit paid when status is paid.
      * Supports ?type=charge to mark the charge collected instead of the bill.
      */
+    // public function verify_qr_payment($visit_id = 0)
+    // {
+    //     if (!$this->rbac->hasPrivilege('patient_flow', 'can_view')) {
+    //         echo json_encode(array('status' => false, 'message' => 'Permission denied', 'debug' => 'rbac_check_failed'));
+    //         return;
+    //     }
+
+    //     $visit_id = intval($visit_id);
+    //     if (!$visit_id) {
+    //         echo json_encode(array('status' => false, 'message' => 'Invalid visit.', 'debug' => 'invalid_visit_id'));
+    //         return;
+    //     }
+
+    //     $payment_type = strtolower(trim((string) $this->input->get('type', true)));
+    //     $is_charge  = ($payment_type === 'charge');
+
+    //     $visit = $this->patientflow_model->get_visit($visit_id);
+    //     if (!$visit) {
+    //         echo json_encode(array('status' => false, 'message' => 'Visit not found.', 'debug' => 'visit_not_found'));
+    //         return;
+    //     }
+
+    //     $qr_code_id = !empty($visit->razorpay_qr_code_id) ? $visit->razorpay_qr_code_id : '';
+    //     if (empty($qr_code_id)) {
+    //         echo json_encode(array('status' => false, 'message' => 'No QR code found for this visit.', 'debug' => 'no_qr_code_id', 'visit_id' => $visit_id));
+    //         return;
+    //     }
+
+    //     // Already paid — nothing to do.
+    //     if ($is_charge) {
+    //         if ((string) $visit->charge_status === 'paid') {
+    //             echo json_encode(array('status' => true, 'paid' => true, 'message' => 'Charge already collected.', 'debug' => 'already_paid_charge'));
+    //             return;
+    //         }
+    //     } else {
+    //         if (!empty($visit->billing_status) && $visit->billing_status === 'paid') {
+    //             echo json_encode(array('status' => true, 'paid' => true, 'message' => 'Already paid.', 'debug' => 'already_paid_billing'));
+    //             return;
+    //         }
+    //     }
+
+    //     $active_method = $this->paymentsetting_model->getActiveMethod();
+    //     $key_id = !empty($active_method->api_publishable_key) ? $active_method->api_publishable_key : '';
+    //     $key_secret = !empty($active_method->api_secret_key) ? $active_method->api_secret_key : '';
+    //     $this->load->library('razorpay_qr_lib', array('key_id' => $key_id, 'key_secret' => $key_secret));
+
+    //     $result = $this->razorpay_qr_lib->fetch_qr($qr_code_id);
+    //     if (!$result['success']) {
+    //         echo json_encode(array('status' => false, 'paid' => false, 'message' => $result['error'], 'debug' => 'razorpay_fetch_failed', 'qr_code_id' => $qr_code_id));
+    //         return;
+    //     }
+
+    //     $data = $result['data'];
+    //     // Razorpay v1/payments/qr_codes/{qr_code_id} returns QR code object at top level.
+    //     // Payment is received if status is 'paid' OR payments_count_received > 0 OR payments_amount_received > 0.
+    //     $status = !empty($data['status']) ? (string) $data['status'] : '';
+    //     $payments_count = !empty($data['payments_count_received']) ? (int) $data['payments_count_received'] : 0;
+    //     $payments_amount = !empty($data['payments_amount_received']) ? (float) $data['payments_amount_received'] : 0;
+    //     $paid = ($status === 'paid' || $payments_count > 0 || $payments_amount > 0);
+
+    //     if ($paid) {
+    //         // Mark the visit as paid (duplicate-safe).
+    //         $current = $this->patientflow_model->get_visit($visit_id);
+    //         if ($current) {
+    //             if ($is_charge && (string) $current->charge_status !== 'paid') {
+    //                 $this->patientflow_model->update_visit($visit_id, array(
+    //                     'charge_status'          => 'paid',
+    //                     'charge_payment_mode'    => 'Razorpay',
+    //                     'charge_collected_at'    => date('Y-m-d H:i:s'),
+    //                     'charge_collected_by'    => $this->customlib->getStaffID(),
+    //                 ));
+    //             } elseif (!$is_charge && (empty($current->billing_status) || $current->billing_status !== 'paid')) {
+    //                 $this->patientflow_model->update_visit($visit_id, array(
+    //                     'billing_status'              => 'paid',
+    //                     'payment_mode'                => 'Razorpay',
+    //                     'cash_received'               => 1,
+    //                     'billing_status_updated_at'   => date('Y-m-d H:i:s'),
+    //                     'billing_status_updated_by'   => $this->customlib->getStaffID(),
+    //                 ));
+    //             }
+    //         }
+    //         echo json_encode(array('status' => true, 'paid' => true, 'message' => 'Payment verified.', 'debug' => 'payment_verified', 'qr_code_id' => $qr_code_id));
+    //     } else {
+    //         echo json_encode(array('status' => true, 'paid' => false, 'message' => 'Payment not received yet.', 'debug' => 'payment_not_received', 'qr_code_id' => $qr_code_id, 'items_count' => count($items)));
+    //     }
+    // }
+
     public function verify_qr_payment($visit_id = 0)
     {
         if (!$this->rbac->hasPrivilege('patient_flow', 'can_view')) {
-            echo json_encode(array('status' => false, 'message' => 'Permission denied'));
+            echo json_encode(array('status' => false, 'message' => 'Permission denied', 'debug' => 'rbac_check_failed'));
             return;
         }
 
         $visit_id = intval($visit_id);
         if (!$visit_id) {
-            echo json_encode(array('status' => false, 'message' => 'Invalid visit.'));
+            echo json_encode(array('status' => false, 'message' => 'Invalid visit.', 'debug' => 'invalid_visit_id'));
             return;
         }
 
         $payment_type = strtolower(trim((string) $this->input->get('type', true)));
-        $is_charge  = ($payment_type === 'charge');
+        $is_charge    = ($payment_type === 'charge');
 
         $visit = $this->patientflow_model->get_visit($visit_id);
         if (!$visit) {
-            echo json_encode(array('status' => false, 'message' => 'Visit not found.'));
+            echo json_encode(array('status' => false, 'message' => 'Visit not found.', 'debug' => 'visit_not_found'));
             return;
         }
 
-        $qr_code_id = !empty($visit->razorpay_qr_code_id) ? $visit->razorpay_qr_code_id : '';
+        $qr_code_id = !empty($visit->razorpay_qr_code_id) ? trim($visit->razorpay_qr_code_id) : '';
         if (empty($qr_code_id)) {
-            echo json_encode(array('status' => false, 'message' => 'No QR code found for this visit.'));
+            echo json_encode(array('status' => false, 'message' => 'No QR code found for this visit.', 'debug' => 'no_qr_code_id', 'visit_id' => $visit_id));
             return;
         }
 
-        // Already paid — nothing to do.
+        // Already paid: nothing to do.
         if ($is_charge) {
             if ((string) $visit->charge_status === 'paid') {
-                echo json_encode(array('status' => true, 'paid' => true, 'message' => 'Charge already collected.'));
+                echo json_encode(array('status' => true, 'paid' => true, 'message' => 'Charge already collected.', 'debug' => 'already_paid_charge'));
                 return;
             }
         } else {
             if (!empty($visit->billing_status) && $visit->billing_status === 'paid') {
-                echo json_encode(array('status' => true, 'paid' => true, 'message' => 'Already paid.'));
+                echo json_encode(array('status' => true, 'paid' => true, 'message' => 'Already paid.', 'debug' => 'already_paid_billing'));
                 return;
             }
         }
 
         $active_method = $this->paymentsetting_model->getActiveMethod();
-        $key_id = !empty($active_method->api_publishable_key) ? $active_method->api_publishable_key : '';
-        $key_secret = !empty($active_method->api_secret_key) ? $active_method->api_secret_key : '';
+        $key_id     = !empty($active_method->api_publishable_key) ? trim($active_method->api_publishable_key) : '';
+        $key_secret = !empty($active_method->api_secret_key) ? trim($active_method->api_secret_key) : '';
         $this->load->library('razorpay_qr_lib', array('key_id' => $key_id, 'key_secret' => $key_secret));
 
-        $result = $this->razorpay_qr_lib->fetch_qr($qr_code_id);
+        // GET /v1/payments/qr_codes/:qr_id/payments
+        $result = $this->razorpay_qr_lib->fetch_qr_payments($qr_code_id, array('count' => 20));
+        // echo '<pre>'; print_r($result); echo '</pre>'; die(); // Debug output
         if (!$result['success']) {
-            echo json_encode(array('status' => false, 'paid' => false, 'message' => $result['error']));
+            log_message('error', 'QR verify failed visit=' . $visit_id . ' qr=' . $qr_code_id . ' err=' . $result['error']);
+            echo json_encode(array(
+                'status'     => false,
+                'paid'       => false,
+                'message'    => $result['error'],
+                'debug'      => 'razorpay_fetch_failed',
+                'qr_code_id' => $qr_code_id,
+                'http_code'  => isset($result['http_code']) ? $result['http_code'] : null,
+            ));
             return;
         }
 
-        $data = $result['data'];
-        $status = !empty($data['status']) ? (string) $data['status'] : '';
-        $paid = ($status === 'paid');
+        $items = (!empty($result['data']['items']) && is_array($result['data']['items'])) ? $result['data']['items'] : array();
+
+        $paid                = false;
+        $razorpay_payment_id = '';
+        $payment_statuses    = array();
+
+        foreach ($items as $p) {
+            $p_status = !empty($p['status']) ? (string) $p['status'] : '';
+            $payment_statuses[] = $p_status;
+
+            // 'captured' means the money has been received.
+            if ($p_status === 'captured') {
+                $paid                = true;
+                $razorpay_payment_id = !empty($p['id']) ? (string) $p['id'] : '';
+                break;
+            }
+        }
+
+        // Temporary debug; remove once everything works.
+        log_message('error', 'QR verify visit=' . $visit_id . ' qr=' . $qr_code_id . ' items=' . count($items) . ' statuses=' . implode(',', $payment_statuses));
 
         if ($paid) {
             // Mark the visit as paid (duplicate-safe).
@@ -2189,24 +2303,39 @@ class Patientflow extends Admin_Controller
             if ($current) {
                 if ($is_charge && (string) $current->charge_status !== 'paid') {
                     $this->patientflow_model->update_visit($visit_id, array(
-                        'charge_status'          => 'paid',
-                        'charge_payment_mode'    => 'Razorpay',
-                        'charge_collected_at'    => date('Y-m-d H:i:s'),
-                        'charge_collected_by'    => $this->customlib->getStaffID(),
+                        'charge_status'       => 'paid',
+                        'charge_payment_mode' => 'Razorpay',
+                        'charge_collected_at' => date('Y-m-d H:i:s'),
+                        'charge_collected_by' => $this->customlib->getStaffID(),
                     ));
                 } elseif (!$is_charge && (empty($current->billing_status) || $current->billing_status !== 'paid')) {
                     $this->patientflow_model->update_visit($visit_id, array(
-                        'billing_status'              => 'paid',
-                        'payment_mode'                => 'Razorpay',
-                        'cash_received'               => 1,
-                        'billing_status_updated_at'   => date('Y-m-d H:i:s'),
-                        'billing_status_updated_by'   => $this->customlib->getStaffID(),
+                        'billing_status'            => 'paid',
+                        'payment_mode'              => 'Razorpay',
+                        'cash_received'             => 1,
+                        'billing_status_updated_at' => date('Y-m-d H:i:s'),
+                        'billing_status_updated_by' => $this->customlib->getStaffID(),
                     ));
                 }
             }
-            echo json_encode(array('status' => true, 'paid' => true, 'message' => 'Payment verified.'));
+            echo json_encode(array(
+                'status'              => true,
+                'paid'                => true,
+                'message'             => 'Payment verified.',
+                'debug'               => 'payment_verified',
+                'qr_code_id'          => $qr_code_id,
+                'razorpay_payment_id' => $razorpay_payment_id,
+            ));
         } else {
-            echo json_encode(array('status' => true, 'paid' => false, 'message' => 'Payment not received yet (' . $status . ').'));
+            echo json_encode(array(
+                'status'           => true,
+                'paid'             => false,
+                'message'          => 'Payment not received yet.',
+                'debug'            => 'payment_not_received',
+                'qr_code_id'       => $qr_code_id,
+                'items_count'      => count($items),
+                'payment_statuses' => $payment_statuses,
+            ));
         }
     }
 
@@ -2491,6 +2620,12 @@ class Patientflow extends Admin_Controller
             $result = $this->patientflow_model->set_charge_status(
                 $visit_id, 'paid', $mode, $staff_id, $role_id
             );
+            // Mark the programme bill invoice as paid if linked to this visit.
+            if (!empty($visit->invoice_no) && $this->db->table_exists('patient_flow_fee_invoice')) {
+                $this->db->where('invoice_no', $visit->invoice_no)
+                    ->where('invoice_type', 'PROGRAMME')
+                    ->update('patient_flow_fee_invoice', array('status' => 'PAID'));
+            }
             echo json_encode($result);
             return;
         }
@@ -2516,6 +2651,12 @@ class Patientflow extends Admin_Controller
             $result = $this->patientflow_model->set_charge_status(
                 $visit_id, 'paid', $mode, $staff_id, $role_id
             );
+            // Mark the programme bill invoice as paid if linked to this visit.
+            if (!empty($visit->invoice_no) && $this->db->table_exists('patient_flow_fee_invoice')) {
+                $this->db->where('invoice_no', $visit->invoice_no)
+                    ->where('invoice_type', 'PROGRAMME')
+                    ->update('patient_flow_fee_invoice', array('status' => 'PAID'));
+            }
             echo json_encode($result);
         }
     }
@@ -2576,6 +2717,14 @@ class Patientflow extends Admin_Controller
             $this->customlib->getStaffID(),
             $role_id
         );
+
+        // Mark the programme bill invoice as paid if linked to this visit.
+        $visit = $this->patientflow_model->get_visit($visit_id);
+        if (!empty($visit->invoice_no) && $this->db->table_exists('patient_flow_fee_invoice')) {
+            $this->db->where('invoice_no', $visit->invoice_no)
+                ->where('invoice_type', 'PROGRAMME')
+                ->update('patient_flow_fee_invoice', array('status' => 'PAID'));
+        }
 
         echo json_encode(array('status' => true, 'insert_id' => $insert_id));
     }
@@ -4550,7 +4699,7 @@ foreach ($slots as $pfx => $label) {
                 'subtotal'      => $amount,
                 'gst_total'     => 0,
                 'grand_total'   => $amount,
-                'status'        => 'PAID',
+                'status'        => 'PENDING',
                 'created_by'    => $staff_id,
             );
             $this->db->insert('patient_flow_fee_invoice', $invoice_payload);
