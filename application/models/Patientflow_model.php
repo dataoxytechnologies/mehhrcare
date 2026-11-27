@@ -5383,8 +5383,8 @@ class Patientflow_model extends CI_Model
         }
 
         // 3) FX series medicines (universal) from medicine_master.
-        //    If ct_indication is set on the visit, only FX medicines whose
-        //    indication field matches ct_indication are shown.
+        //    Only fetch FX medicines if ct_indication is set on the visit;
+        //    then filter FX medicines whose indication field matches ct_indication.
         $ct_indication = null;
         $ct_purpose    = null;
         if ($this->db->table_exists('patient_flow_visits') && $visit_id > 0) {
@@ -5395,12 +5395,10 @@ class Patientflow_model extends CI_Model
                 $ct_purpose    = trim((string) ($vrow->ct_purpose ?: ''));
             }
         }
-        if ($this->db->table_exists('medicine_master')) {
+        if ($this->db->table_exists('medicine_master') && $ct_indication !== '') {
             $fx_query = $this->db->select('id, code, medicine_identity, patient_dose, route_method, timing, frequency, duration_text, dispensing_qty_ml, indication')
-                ->where('series', 'FX')->where('is_active', 1);
-            if ($ct_indication !== '') {
-                $fx_query->where('indication', $ct_indication);
-            }
+                ->where('series', 'FX')->where('is_active', 1)
+                ->where('indication', $ct_indication);
             $fx_rows = $fx_query->get('medicine_master')->result();
             foreach ($fx_rows as $r) {
                 $medicines[] = array(
@@ -5418,15 +5416,15 @@ class Patientflow_model extends CI_Model
                     'source' => 'Universal FX medicine',
                 );
             }
+        }
 
-            // 4) E series medicines (universal) from medicine_master.
-            //    If ct_purpose is set on the visit, only E medicines whose
-            //    purpose field matches ct_purpose are shown.
+        // 4) E series medicines (universal) from medicine_master.
+        //    Only fetch E medicines if ct_purpose is set on the visit;
+        //    then filter E medicines whose purpose field matches ct_purpose.
+        if ($this->db->table_exists('medicine_master') && $ct_purpose !== '') {
             $e_query = $this->db->select('id, code, medicine_identity, patient_dose, route_method, timing, frequency, duration_text, dispensing_qty_ml, purpose')
-                ->where('series', 'E')->where('is_active', 1);
-            if ($ct_purpose !== '') {
-                $e_query->where('purpose', $ct_purpose);
-            }
+                ->where('series', 'E')->where('is_active', 1)
+                ->where('purpose', $ct_purpose);
             $e_rows = $e_query->get('medicine_master')->result();
             foreach ($e_rows as $r) {
                 $medicines[] = array(

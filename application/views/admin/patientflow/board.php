@@ -3670,13 +3670,24 @@ function pfMsFetchBySeries() {
 
 // Toggle reason textarea visibility when any medicine checkbox is checked/unchecked
 $(document).on('change', '#pf_med_select_table_rows input.pf_med_checkbox', function () {
-    var hasAnyChecked = $('#pf_med_select_table_rows input.pf_med_checkbox:checked').length > 0;
+    // Count total F-series (non-FX/E) medicines and checked ones
+    var totalRegular = $('#pf_med_select_table_rows input.pf_med_checkbox').filter(function () {
+        var s = $(this).data('series');
+        return s !== 'FX' && s !== 'E';
+    }).length;
+    var checkedRegular = $('#pf_med_select_table_rows input.pf_med_checkbox:checked').filter(function () {
+        var s = $(this).data('series');
+        return s !== 'FX' && s !== 'E';
+    }).length;
     var hasUniversal = $('#pf_med_select_table_rows input.pf_med_checkbox:checked').filter(function () {
         return $(this).data('series') === 'FX' || $(this).data('series') === 'E';
     }).length > 0;
 
-    // General reason to change - show when any medicine is checked
-    if (hasAnyChecked) {
+    // General reason to change - show when NOT all F-series medicines are checked
+    // (i.e., at least one F-series medicine has been unchecked from the locked state)
+    var hasRegularChecked = (totalRegular > 0 && checkedRegular < totalRegular);
+
+    if (hasRegularChecked) {
         $('#pf_ms_reason_wrapper').removeClass('d-none');
         $('#pf_ms_reason').prop('required', true);
     } else {
@@ -3705,12 +3716,22 @@ $(document).on('change', '#pf_med_select_table_rows input.pf_med_checkbox', func
 // Also toggle on modal open if pre-checked medicines exist
 $(document).on('shown.bs.modal', '#pfMedSelectModal', function () {
     setTimeout(function () {
-        var hasAnyChecked = $('#pf_med_select_table_rows input.pf_med_checkbox:checked').length > 0;
+        var totalRegular = $('#pf_med_select_table_rows input.pf_med_checkbox').filter(function () {
+            var s = $(this).data('series');
+            return s !== 'FX' && s !== 'E';
+        }).length;
+        var checkedRegular = $('#pf_med_select_table_rows input.pf_med_checkbox:checked').filter(function () {
+            var s = $(this).data('series');
+            return s !== 'FX' && s !== 'E';
+        }).length;
         var hasUniversal = $('#pf_med_select_table_rows input.pf_med_checkbox:checked').filter(function () {
             return $(this).data('series') === 'FX' || $(this).data('series') === 'E';
         }).length > 0;
 
-        if (hasAnyChecked) {
+        // General reason to change - show when NOT all F-series medicines are checked
+        var hasRegularChecked = (totalRegular > 0 && checkedRegular < totalRegular);
+
+        if (hasRegularChecked) {
             $('#pf_ms_reason_wrapper').removeClass('d-none');
             $('#pf_ms_reason').prop('required', true);
         } else {
@@ -3909,14 +3930,14 @@ $(document).on('click', '#pf_ms_save', function () {
         errorMsg('Please select at least one medicine.');
         return;
     }
-    // General reason to change - required when any medicine is checked
+    // General reason to change - required only when visible (i.e., some F-series medicines are unchecked)
     var reasonGeneral = $('#pf_ms_reason').val().trim();
-    if (reasonGeneral === '') {
+    if (!$('#pf_ms_reason_wrapper').hasClass('d-none') && reasonGeneral === '') {
         errorMsg('Please enter a reason for prescribing medicine.');
         $('#pf_ms_reason').focus();
         return;
     }
-    // FX/E specific reason - required when any FX/E medicine is checked
+    // FX/E specific reason - required only when visible (i.e., some FX/E medicine is checked)
     var hasUniversal = false;
     var reasonFXE = $('#pf_ms_reason_fx_e').val().trim();
     checked.forEach(function (c) {
@@ -3925,7 +3946,7 @@ $(document).on('click', '#pf_ms_save', function () {
             hasUniversal = true;
         }
     });
-    if (hasUniversal && reasonFXE === '') {
+    if (!$('#pf_ms_reason_fx_e_wrapper').hasClass('d-none') && reasonFXE === '') {
         errorMsg('Please enter a reason for prescribing FX/E medicine.');
         $('#pf_ms_reason_fx_e').focus();
         return;
